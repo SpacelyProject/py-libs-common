@@ -1,7 +1,7 @@
 from __future__ import annotations
 from fnal_libprologix import PrologixDevice
 
-class AgilentAWG(Prologix_Device):
+class AgilentAWG(PrologixDevice):
     def __init__(self, logger, ip_address, device_addr, default_data_timeout = 2):
         super().__init__(logger, ip_address, device_addr, default_data_timeout)
         
