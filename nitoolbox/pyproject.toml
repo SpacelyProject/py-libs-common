@@ -26,7 +26,7 @@ classifiers = [
 logging = ["fnal_log_wizard"]
 
 [project.urls]
-"Homepage" = "https://github.com/Fermilab-Microelectronics/py-libs-common/ni_toolbox"
+"Homepage" = "https://github.com/Fermilab-Microelectronics/py-libs-common/nitoolbox"
 "Bug Tracker" = "https://github.com/Fermilab-Microelectronics/py-libs-common/issues"
 
 [build-system]
