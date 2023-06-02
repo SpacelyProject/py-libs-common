@@ -2,7 +2,8 @@
 
 import sys
 import platform
-import datetime
+from datetime import datetime
+from . import levels
 
 class OutputStrategy:
     def write_bytes(self, data: str) -> None:
@@ -42,16 +43,6 @@ class Logger:
     """
     Common interface for all loggers
     """
-    # Standard syslog levels
-    LV_EMERG = 0
-    LV_ALERT = 1
-    LV_CRIT = 2
-    LV_ERR = 3
-    LV_WARN = 4
-    LV_NOTICE = 5
-    LV_INFO = 6
-    LV_DEBUG = 7
-
     def emerg(self, text, format: bool = True) -> None:
         pass
 
@@ -134,33 +125,33 @@ class PlainLogger(Logger):
         self.curr_block = None
 
     def emerg(self, text, format: bool = True) -> None:
-        self._log(text, self.LV_EMERG, dt_mark=format, lv_mark=format)
+        self._log(text, levels.LOG_EMERG, dt_mark=format, lv_mark=format)
 
     def alert(self, text, format: bool = True) -> None:
-        self._log(text, self.LV_ALERT, dt_mark=format, lv_mark=format)
+        self._log(text, levels.LOG_ALERT, dt_mark=format, lv_mark=format)
 
     def critical(self, text, format: bool = True) -> None:
-        self._log(text, self.LV_CRIT, dt_mark=format, lv_mark=format)
+        self._log(text, levels.LOG_CRIT, dt_mark=format, lv_mark=format)
 
     def error(self, text, format: bool = True) -> None:
-        self._log(text, self.LV_ERR, dt_mark=format, lv_mark=format)
+        self._log(text, levels.LOG_ERR, dt_mark=format, lv_mark=format)
 
     def warning(self, text, format: bool = True) -> None:
-        self._log(text, self.LV_WARN, dt_mark=format, lv_mark=format)
+        self._log(text, levels.LOG_WARN, dt_mark=format, lv_mark=format)
 
     def notice(self, text, format: bool = True) -> None:
-        self._log(text, self.LV_NOTICE, dt_mark=format, lv_mark=format)
+        self._log(text, levels.LOG_NOTICE, dt_mark=format, lv_mark=format)
 
     def info(self, text, format: bool = True) -> None:
-        self._log(text, self.LV_INFO, dt_mark=format, lv_mark=format)
+        self._log(text, levels.LOG_INFO, dt_mark=format, lv_mark=format)
 
     def debug(self, text, format: bool = True) -> None:
-        self._log(text, self.LV_DEBUG, dt_mark=format, lv_mark=format)
+        self._log(text, levels.LOG_DEBUG, dt_mark=format, lv_mark=format)
 
     def blocking(self, text, level: int | None = None) -> None:
         """Starts a blocking operation"""
         if level == None:
-            level = Logger.LV_DEBUG
+            level = levels.LOG_DEBUG
 
         if text is None:
             self._log(self.curr_block, level, nl=False)
@@ -176,7 +167,7 @@ class PlainLogger(Logger):
             return
 
         if level == None:
-            level = Logger.LV_DEBUG
+            level = levels.LOG_DEBUG
 
         # if something was printed during the block we need to repeat it
         if self.last_msg != self.curr_block and self.last_msg is not None:
