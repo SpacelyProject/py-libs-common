@@ -1,5 +1,5 @@
 [project]
-name = "fnal_libprologix"
+name = "fnal_ni_toolbox"
 description = "Package to simplify interaction with DC power modules from National Instruments"
 version = "0.1.0"
 
