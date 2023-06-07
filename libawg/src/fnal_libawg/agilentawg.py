@@ -1,5 +1,6 @@
 from __future__ import annotations
 from fnal_libprologix import PrologixDevice
+import time
 
 class AgilentAWG(PrologixDevice):
     def __init__(self, logger, ip_address, device_addr, default_data_timeout = 2):
@@ -21,7 +22,7 @@ class AgilentAWG(PrologixDevice):
         self.log.debug(f"AWG set to offset {voltage_mv}mV")
         return ret
     
-    def _send_voltage_cmd(self, cmd: string, voltage_mv: floa) -> bool:
+    def _send_voltage_cmd(self, cmd: str, voltage_mv: float) -> bool:
         voltage_volts = round(voltage_mv/1000, 4)
         cmd = f"{cmd} {voltage_volts}"
         
