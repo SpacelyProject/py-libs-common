@@ -177,6 +177,6 @@ class AgilentAWG(PrologixDevice):
 
     def set_output(self, enabled: bool) -> None:
         state = 'ON' if enabled else 'OFF'
-        self.send_line(f"OUTP {state}")
+        self.send_line_awg(f"OUTP {state}")
         self.log.debug(f"AWG output set to {state}")
         time.sleep(0.5)
