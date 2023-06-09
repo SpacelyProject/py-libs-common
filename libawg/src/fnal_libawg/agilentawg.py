@@ -50,6 +50,7 @@ class AgilentAWG(PrologixDevice):
         if not connected:
             return False
 
+        self.display_text("Configuring...")
         # Read all errors stroed in the instrument
         self.log.blocking("Reading remote instrument errors", LOG_DEBUG)
         errors = self.read_all_errors()
@@ -63,6 +64,9 @@ class AgilentAWG(PrologixDevice):
                              "from previous commands. They will be listed below.")
             for error in errors:
                 self.log.error(f"Agilent AWG {str(error)}")
+
+        self.restart()
+        self.display_text("-- Remote Operation --")
 
         return connected
 
@@ -186,4 +190,10 @@ class AgilentAWG(PrologixDevice):
         if len(text) > 41:
             raise ValueError("The display text cannot be longer than 41 characters")
         self.send_line_awg(f"DISP:TEXT \"{text}\"")
- 
+
+    def restart(self) -> None:
+        """Restarts the instrument, restoring volatile memory to defaults"""
+        self.log.blocking("Restarting AWG to restore volatile memory")
+        self.send_line_awg("*RST")
+        self.log.block_res(True)
+        time.sleep(1)
