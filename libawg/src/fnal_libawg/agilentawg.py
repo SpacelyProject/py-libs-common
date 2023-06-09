@@ -180,3 +180,10 @@ class AgilentAWG(PrologixDevice):
         self.send_line_awg(f"OUTP {state}")
         self.log.debug(f"AWG output set to {state}")
         time.sleep(0.5)
+
+    def display_text(self, text: bool) -> None:
+        """Displays a text on the front panel of the instrument"""
+        if len(text) > 41:
+            raise ValueError("The display text cannot be longer than 41 characters")
+        self.send_line_awg(f"DISP:TEXT \"{text}\"")
+ 
