@@ -129,8 +129,18 @@ class PrologixDevice():
         self.data_eot_char = char_code
         self.send_command(f"eot_char {char_code}", False)
         self.send_command(f"eot_enable 1", False)
-    
-    def send_line(self, cmd_txt: str):
+
+    def send_line(self, cmd_txt: str) -> str:
+        """Sends a low-level line to the instrument
+
+           Sending a line-command is intended for commands that are NOT
+           returning responses. If you're expecting a response you should
+           use query_*() method offered by your instrument's library.
+
+           This function should NOT be used directly outside of
+           instrument-specific modules. Instrument-specific modules
+           are tasked to offer error handling.
+        """
         if not self.is_connected():
             raise RuntimeError("Attempted to send_line() but not connected")
         
@@ -138,6 +148,7 @@ class PrologixDevice():
         self.sock.send((cmd_txt+"\n").encode())
 
     def send_command(self, cmd: str, expect_response: bool) -> str | None:
+        """Sends a command to the Prologix bridge directly"""
         cmd = f"++{cmd}"
 
         # Even silent commands in Prolgoix can return an error but quickly
@@ -233,8 +244,19 @@ class PrologixDevice():
 
         return rcv.decode()
 
-    def query(self, cmd_txt: str, trim: bool = False):
-        #For Query-type commands ONLY we set read-after-write to True. 
+    def query(self, cmd_txt: str, trim: bool = False) -> str:
+        """Sends a low-level query to the instrument
+
+           Sending a query is intended for commands that DO return a
+           responses. If you're not expecting a response you should
+           use send_line_*() method offered by your instrument's library.
+
+           This function should NOT be used directly outside of
+           instrument-specific modules. Instrument-specific modules
+           are tasked to offer error handling.
+        """
+
+        #For Query-type commands ONLY we set read-after-write to True.
         #self.(enabled=True)
         self.send_line(cmd_txt)
 
