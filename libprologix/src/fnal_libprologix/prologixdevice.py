@@ -31,10 +31,10 @@ class PrologixDevice():
         try: # all commands here CAN fail (e.g. identify_*)
             ident = self.identify_bridge()
             if not ident.startswith("Prologix GPIB-ETHERNET Controller"):
-                print(f"Prologix handshake failure. Not a Prologix device? Identity: {ident}")
+                self.log.error(f"Prologix handshake failure. Not a Prologix device? Identity: {ident}")
                 self.disconnect()
                 return False
-            print(f"Connected to Prologix bridge: {ident}")
+            self.log.info(f"Connected to Prologix bridge: {ident}")
 
             self.set_mode(self.MODE_CONTROLLER)
             self.set_gpib_addr(self.device_addr)
@@ -50,11 +50,10 @@ class PrologixDevice():
             #self.set_eot_signaling(True)
 
             ident = self.identify_device()
-            print(f"Connected to GPIB device: {ident}")
+            self.log.notice(f"Connected to GPIB device: {ident}")
 
         except Exception as e:
-            print(e)
-            print(f"I/O error: {str(e)}")
+            self.log.error(f"PrologixDevice I/O error: {str(e)}")
             self.disconnect()
             return False
 
@@ -65,27 +64,28 @@ class PrologixDevice():
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_TCP)
         sock.settimeout(tcp_timeout) # the connection timeout is not the same as send/rcv timeout!
 
-        print(f"Attempting Prologix connection (up to {max_attempts} times)")
+        self.log.info(f"Attempting Prologix connection (up to {max_attempts} times)")
         for _ in range(1, max_attempts):
             try:
                 #All prologix converters connect to port 1234 and it cannot be changed
                 sock.connect((self.ip_address, 1234))
 
             except Exception as e:
-                print(f"Prologix TCP connection failed: {str(e)}")
+                self.log.error(f"Prologix TCP connection failed: {str(e)} - retrying")
+                time.wait(1)
                 continue
 
             self.sock = sock
             return True
 
-        print("Exhausted Prologix connection attempts!")
+        self.log.error("Exhausted Prologix connection attempts!")
         return False
 
     def disconnect(self) -> None:
         if not self.is_connected():
             return # noop
 
-        print(f"Disconnecting from Prologix...")
+        self.log.info("Disconnecting from Prologix...")
         self.sock.close()
         self.sock = None
 
@@ -150,7 +150,7 @@ class PrologixDevice():
                              "You should NOT try to chain multiple commands in one call, "
                              "as it can interfeer with the proper oepration of the interface.")
 
-        #print(f"SENDING: {cmd_txt}")
+        #self.log.debug(f"PrologixDevice send_line: {cmd_txt}")
         self.sock.send((cmd_txt+"\n").encode())
 
     def send_command(self, cmd: str, expect_response: bool) -> str | None:
@@ -221,7 +221,8 @@ class PrologixDevice():
             rcv = self.sock.recv(self.DEF_BUFFER_SIZE).decode()
 
             buffer = f"{buffer}{rcv}"
-            #print(f"BUFFER: >>{buffer}<<")
+
+            #self.log.debug(f"PrologixDevice recv_line buffer: >>{buffer}<<")
             if "\n" in buffer:
                 break
 
