@@ -26,8 +26,8 @@ class PrologixDevice():
     def connect(self, max_attempts = 10, tcp_timeout = 0.5) -> bool:
         if not self.__open_bridge_connection():
             return False
-      
-        self.flush_buffer()
+
+        self._flush_buffer()
         try: # all commands here CAN fail (e.g. identify_*)
             ident = self.identify_bridge()
             if not ident.startswith("Prologix GPIB-ETHERNET Controller"):
@@ -153,8 +153,16 @@ class PrologixDevice():
             raise RuntimeError(f"Prologic command \"{cmd}\" returned data when not expected: {rcv}")
 
         return rcv if expect_response else None
-    
-    def flush_buffer(self) -> None:
+
+    def _flush_buffer(self) -> None:
+        """Forcefully flushes Prologix receive buffer
+
+           This is a low-level function, meant to deal with a
+           semi-buggy behavior of the interface. You should NOT be
+           using it unless you're 100% sure you need it, as it can
+           lead to data loss. Definitely DO NOT use it from outside
+           of the Prologix handling code.
+        """
         # Prologix will hold up to 1 frame of GPIB data
         # If not picked-up further commands are sometimes ignores
         #  until the buffer is freed
