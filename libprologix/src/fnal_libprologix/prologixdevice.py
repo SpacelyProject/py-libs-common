@@ -143,7 +143,13 @@ class PrologixDevice():
         """
         if not self.is_connected():
             raise RuntimeError("Attempted to send_line() but not connected")
-        
+
+        cmd_txt = cmd_txt.strip()  # some instruments will error-out when whitespaces are sent
+        if '\n' in cmd_txt or '\r' in cmd_txt:
+            raise ValueError("Your line command contains a new line character. "
+                             "You should NOT try to chain multiple commands in one call, "
+                             "as it can interfeer with the proper oepration of the interface.")
+
         #print(f"SENDING: {cmd_txt}")
         self.sock.send((cmd_txt+"\n").encode())
 
