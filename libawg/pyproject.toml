@@ -5,7 +5,8 @@ version = "0.1.1"
 
 requires-python = ">=3.10"
 dependencies = [
-    "fnal_libprologix @ git+https://github.com/Fermilab-Microelectronics/py-libs-common#subdirectory=libprologix"
+    "fnal_libprologix @ git+https://github.com/Fermilab-Microelectronics/py-libs-common#subdirectory=libprologix",
+    "fnal_log_wizard @ git+https://github.com/Fermilab-Microelectronics/py-libs-common#subdirectory=liblogwizard"
 ]
 
 authors = [
