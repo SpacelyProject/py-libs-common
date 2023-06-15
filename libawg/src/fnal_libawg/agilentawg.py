@@ -172,7 +172,7 @@ class AgilentAWG(PrologixDevice):
         cmd = f"{cmd} {voltage_volts}"
 
         if self.limit is not None and abs(voltage_volts) > self.limit:
-            log.critical("Refusing to execute AWG \"{cmd}\" - {voltage_volts}V is over limit of {self.limit}V")
+            self.log.critical("Refusing to execute AWG \"{cmd}\" - {voltage_volts}V is over limit of {self.limit}V")
             return False
 
         self.send_line(cmd)
