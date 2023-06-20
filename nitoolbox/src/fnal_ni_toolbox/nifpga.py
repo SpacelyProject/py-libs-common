@@ -46,7 +46,7 @@ class NiFpga:
         return name in self._session.fifos
 
     def get_fifo(self, name: str) -> NiFifo:
-        if self.has_fifo(name):
+        if not self.has_fifo(name):
             if self.has_register(name):
                 raise NiFpgaError(f"There's no FIFO named \"{name}\" - did you mean to use get_register({name})?")
             else:
@@ -64,7 +64,7 @@ class NiFpga:
         return name in self._session.registers
 
     def get_register(self, name: str) -> NiRegister:
-        if self.has_register(name):
+        if not self.has_register(name):
             if self.has_fifo(name):
                 raise NiFpgaError(f"There's no register named \"{name}\" - did you mean to use get_fifo({name})?")
             else:
@@ -237,12 +237,12 @@ class NiFpgaDebugger:
         else:
             raise NiFpgaError(f"Casting to unknown type: {my_type}")
 
-    def interact(self, operation: str | None = None, index: int | None = None, user_data=None):
+    def interact(self, operation: str | None = None, choice: int | str | None = None, user_data=None):
         registers = self._fpga.list_registers()
         fifos = self._fpga.list_fifos()
-        all_fpga_entities = registers + fifos
+        all_fpga_entities = list(registers) + list(fifos)
 
-        if operation is None or index is None:
+        if operation is None or choice is None:
             choice = self._pick_target(all_fpga_entities)
             if choice is None:
                 print("-- Aborted")
@@ -252,14 +252,20 @@ class NiFpgaDebugger:
         if operation not in ['r', 'w']:
             raise NiFpgaError(f"Invalid operation \"{operation}\"")
 
-        if index < 0 or index > len(all_fpga_entities):
-            raise NiFpgaError(f"Invalid index \"{index}\" for entity")
-
-        choice = all_fpga_entities[index]
+        #interact() should be able to accept str names or int indices
+        if type(choice) == str:
+            pass
+        elif type(choice) == int:
+            if choice < 0 or choice > len(all_fpga_entities):
+                raise NiFpgaError(f"Invalid index \"{index}\" for entity")
+            choice = all_fpga_entities[choice]
+        elif type(choice) == None:
+            raise NiFpgaError(f"You can't interact with 'None' :p")
+        
         if self._fpga.has_register(choice):
             return self._interact_with_register(choice, operation, user_data)
         elif self._fpga.has_fifo(choice):
-            return self._interact_with_register(choice, operation, user_data)
+            return self._interact_with_fifo(choice, operation, user_data)
         else:
             raise NiFpgaError(f"{choice} is neither a register nor a FIFO?!")
 
