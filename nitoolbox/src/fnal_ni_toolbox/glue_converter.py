@@ -88,14 +88,17 @@ class GlueConverter():
         with open(output_file_name,'w') as write_file:
             write_file.write(",".join([str(x) for x in vector]))
             write_file.write("\n")
-            write_file.write("//TIMEBASE_PICOSECONDS:"+str(vcd_timebase_ps)+"\n")
+            write_file.write("//VCD_TIMEBASE_PICOSECONDS:"+str(vcd_timebase_ps)+"\n")
             write_file.write("//STROBE_PICOSECONDS:"+str(strobe_ps)+"\n")
+            write_file.write("//GLUE_TIMESTEPS:"+str(len(vector))+"\n")
 
 
         print("Glue Converter finished!")
-        print("# of timesteps was:",len(vector))
-        print("Strobe was:",strobe_ps,"ps")
         print("Timebase of input file was:",vcd_timebase_ps,"ps")
+        print("Length of input file was:",endtime*vcd_timebase_ps/1000000,"us")
+        print("Strobe was:",strobe_ps,"ps")
+        print("# of timesteps was:",len(vector))
+        
         
 
     #Plots a glue waveform using matplotlib. Useful for debugging.
