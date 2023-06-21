@@ -58,7 +58,7 @@ class NiFpga:
         return self._fifos[name]
 
     def list_fifos(self) -> list[str]:
-        return self._session.registers.keys()
+        return self._session.fifos.keys()
 
     def has_register(self, name: str) -> bool:
         return name in self._session.registers
@@ -123,7 +123,8 @@ class NiFifo:
         """Sets default size for FIFO operations"""
         self._size = size
 
-    def read(self, size=None, timeout=0) -> list[str | int | float]:
+    #Default timeout of 100ms for all FIFO R/W
+    def read(self, size=None, timeout=100) -> list[str | int | float]:
         """Reads data from the FIFO
 
            If the size for the FIFO was set (using set_size()) all reads can be
@@ -139,7 +140,8 @@ class NiFifo:
 
         return self.ref.read(size, timeout)
 
-    def write(self, data: list, timeout=0) -> None:
+    #Default timeout of 100ms for all FIFO R/W
+    def write(self, data: list, timeout=100) -> None:
         """Write elements to the FIFO"""
         if not self.running:
             raise NiFpgaError(f"Cannot write - FIFO \"{self.ref.name}\" is not running")
@@ -237,18 +239,24 @@ class NiFpgaDebugger:
         else:
             raise NiFpgaError(f"Casting to unknown type: {my_type}")
 
+    # PARAMS:
+    #       user_data - READ: how many elems to read, WRITE: data to write
     def interact(self, operation: str | None = None, choice: int | str | None = None, user_data=None):
         registers = self._fpga.list_registers()
         fifos = self._fpga.list_fifos()
         all_fpga_entities = list(registers) + list(fifos)
 
         if operation is None or choice is None:
-            choice = self._pick_target(all_fpga_entities)
-            if choice is None:
+            interactive = True
+            pick = self._pick_target(all_fpga_entities)
+            if pick is None:
                 print("-- Aborted")
                 return
-            operation, index = choice
-
+            operation, index = pick
+            choice = all_fpga_entities[index]
+        else:
+            interactive = False
+            
         if operation not in ['r', 'w']:
             raise NiFpgaError(f"Invalid operation \"{operation}\"")
 
@@ -265,33 +273,57 @@ class NiFpgaDebugger:
         if self._fpga.has_register(choice):
             return self._interact_with_register(choice, operation, user_data)
         elif self._fpga.has_fifo(choice):
-            return self._interact_with_fifo(choice, operation, user_data)
+            y = self._interact_with_fifo(choice, operation, user_data)
+            if operation == 'r' and interactive:
+                print(y)
+            return y
         else:
             raise NiFpgaError(f"{choice} is neither a register nor a FIFO?!")
 
     def _interact_with_register(self, name: str, operation: str, user_data: any) -> any:
         reg = self._fpga.get_register(name)
         reg_val = reg.value
+
+        # Read
         if operation == 'r':
             return reg_val
 
-        if user_data is None:
-            user_data = input("Data to write >>> ").strip()
-        reg.value = self.cast(user_data, type(reg_val))
+        # Write
+        elif operation == 'w':
+            if user_data is None:
+                user_data = input("Data to write >>> ").strip()
+            reg.value = self.cast(user_data, type(reg_val))
+            
+        else:
+            raise NiFpgaError(f"_interact_with_register: bad operation")
 
     def _interact_with_fifo(self, name: str, operation: str, user_data: any) -> any:
         fifo = self._fpga.get_fifo(name)
 
+        # Read
         if operation == 'r':
-            fifo_size = 16384 if fifo.size is None else 16384  # todo: a sensible default, but maybe it should ask?
+            # Get fifo_size if not supplied in user_data
+            if user_data is None:
+                fifo_size = int(input("Read how many elems? >>>").strip())
+            else:   
+                fifo_size = user_data
+                
             return fifo.read(fifo_size)
+        
+        # Write
+        elif operation == 'w':
+            # Get user_data if not supplied.
+            if user_data is None:
+                user_data = input("Data to write >>> ").strip()
 
-        if user_data is None:
-            user_data = input("Data to write >>> ").strip()
             fifo.write(self.cast(user_data, list))
 
+        else:
+            raise NiFpgaError(f"_interact_with_fifo: bad operation")
+
     def _pick_target(self, elements: list) -> tuple[str, int] | None:
-        assert any(elements.count(el) > 1 for el in elements) is False, "List of elements cannot contain duplicates!"
+        if any(elements.count(el) > 1 for el in elements):
+            print("(WARN) List of elements should not contain duplicates. (Greg would be disappointed)")
 
         idx = -1
         for entity in elements:
@@ -301,7 +333,7 @@ class NiFpgaDebugger:
                 reg = self._fpga.get_register(entity)
                 reg_val = reg.value
 
-                print(f"{idx}\tRegister \"{entity}\" (type: {reg.type}", end='\t')
+                print(f"{idx}\tRegister \"{entity}\" (type: {reg.type})", end='\t')
                 if type(reg_val) is list:
                     print(f"sum(cur_val): {sum(reg_val)}")
                 else:
@@ -309,7 +341,7 @@ class NiFpgaDebugger:
 
             elif self._fpga.has_fifo(entity):
                 fifo = self._fpga.get_fifo(entity)
-                print(f"{idx}\tFIFO \"{entity}\" (size: {fifo.size}", end='\t')
+                print(f"{idx}\tFIFO \"{entity}\" (size: {fifo.size})", end='\n')
 
         # Get User input
         print(f"Pick the target; prepend it with \"r\" (e.g. r3) to read or with \"w\" (e.g. w3) to write")
@@ -320,11 +352,11 @@ class NiFpgaDebugger:
 
             if user_idx_len < 1:
                 return
-            elif user_idx_len < 2 or (user_idx[0] != 'r' and user_idx[1] != 'w'):
+            elif user_idx_len < 2 or (user_idx[0] != 'r' and user_idx[0] != 'w'):
                 print("Invalid syntax")
                 continue
 
-            real_idx = int(user_idx[:+1])
+            real_idx = int(user_idx[1:])
             if real_idx < 0 or real_idx > len(elements):
                 print(f"Index out of bounds")
                 continue
