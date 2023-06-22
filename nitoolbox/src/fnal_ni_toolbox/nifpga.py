@@ -123,8 +123,8 @@ class NiFifo:
         """Sets default size for FIFO operations"""
         self._size = size
 
-    #Default timeout of 100ms for all FIFO R/W
-    def read(self, size=None, timeout=100) -> list[str | int | float]:
+    #Default timeout of 1000ms for all FIFO R/W (allows for long patterns)
+    def read(self, size=None, timeout=1000) -> list[str | int | float]:
         """Reads data from the FIFO
 
            If the size for the FIFO was set (using set_size()) all reads can be
@@ -140,8 +140,8 @@ class NiFifo:
 
         return self.ref.read(size, timeout)
 
-    #Default timeout of 100ms for all FIFO R/W
-    def write(self, data: list, timeout=100) -> None:
+    #Default timeout of 1000ms for all FIFO R/W (allows for long patterns)
+    def write(self, data: list, timeout=1000) -> None:
         """Write elements to the FIFO"""
         if not self.running:
             raise NiFpgaError(f"Cannot write - FIFO \"{self.ref.name}\" is not running")
