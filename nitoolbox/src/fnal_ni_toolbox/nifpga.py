@@ -29,6 +29,7 @@ class NiFpga:
         self._session = nifpga.Session(bitfile, self._resource, no_run=True)
         self.reset()  # ensure clean state
         self._session.run()
+        
 
     def reset(self) -> None:
         if self._session is None:
@@ -238,6 +239,12 @@ class NiFpgaDebugger:
             return eval(my_data)  # Allow list construction.
         else:
             raise NiFpgaError(f"Casting to unknown type: {my_type}")
+
+    #Accepts a dictionary of GlueFPGA registers and their appropriate config values.
+    def configure(self, config_dict):
+        #Set all registers to their default values.
+        for cfg in config_dict.keys():
+            self.interact("w", cfg, config_dict[cfg])
 
     # PARAMS:
     #       user_data - READ: how many elems to read, WRITE: data to write

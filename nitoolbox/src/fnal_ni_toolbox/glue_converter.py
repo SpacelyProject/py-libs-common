@@ -40,7 +40,16 @@
 
 from vcdvcd import VCDVCD
 import matplotlib.pyplot as plt
+import tkinter as tk
+from tkinter import filedialog
 
+
+class GlueWave():
+
+    def __init__(self, vector, strobe_ps):
+        self.vector = vector
+        self.strobe_ps = strobe_ps
+        self.len = len(self.vector)
 
 class GlueConverter():
 
@@ -48,8 +57,9 @@ class GlueConverter():
     #You ALWAYS need an I/O spec file to interpret or write Glue files, so we initialize it
     #here. But we don't immediately ask for a VCD file / timebase bc you may want to use multiple
     #of those.
-    def __init__(self, iospec_file):
-        self.parse_iospec_file(iospec_file)
+    def __init__(self, iospec_file=None):
+        if iospec_file is not None:
+            self.parse_iospec_file(iospec_file)
 
 
 
@@ -99,19 +109,27 @@ class GlueConverter():
         print("Strobe was:",strobe_ps,"ps")
         print("# of timesteps was:",len(vector))
         
-        
-
-    #Plots a glue waveform using matplotlib. Useful for debugging.
-    def plot_glue(self,glue_file,time_interval_ps=None):
-
-        with open(glue_file,"r") as read_file:
+    def parse_glue(self,glue_file_name):
+        with open(glue_file_name,"r") as read_file:
             lines = read_file.readlines()
 
         #It processes the first line to create a list of integers named vector.(beren)
         vector = [int(x) for x in lines[0].strip().split(",")]
+
         #It processes the next two lines to extract floating point numbers (beren)
-        timebase_ps = float(lines[1].strip().split(":")[-1])
-        strobe_ps = float(lines[2].strip().split(":")[-1])
+        #timebase_ps = float(lines[1].strip().split(":")[-1])
+        for line in lines:
+            if "STROBE" in line:   
+                strobe_ps = float(line.strip().split(":")[-1])
+
+        return GlueWave(vector,strobe_ps)
+
+    #Plots a glue waveform using matplotlib. Useful for debugging.
+    def plot_glue(self,glue_file,time_interval_ps=None):
+
+        wave = self.parse_glue(glue_file)
+        vector = wave.vector
+        strobe_ps = wave.strobe_ps
 
         if time_interval_ps is not None:
             start_time = time_interval_ps[0]
@@ -194,7 +212,79 @@ class GlueConverter():
                 else:
                     self.IO_default[sig_name] = 0
             
+    def compare(self, wave1, wave2):
+
+        print("Wave 1 len:",wave1.len)
+        print("Wave 2 len:",wave2.len)
         
-    
+        print( "I/O             Dir.\tDC1 \tDC2 \tIn=Out?")
+        for io in self.IOs:
 
+            direction = self.IO_dir[io]
+            position = self.IO_pos[io]
+            pattern1_this_io = [1 if x & (1 << position) else 0 for x in wave1.vector]
+            pattern2_this_io = [1 if x & (1 << position) else 0 for x in wave2.vector]
 
+            DC1 = round(sum(pattern1_this_io)/len(pattern1_this_io),5)
+            DC2 = round(sum(pattern2_this_io)/len(pattern2_this_io),5)
+            passthrough = all([pattern1_this_io[i] == pattern2_this_io[i] for i in range(min(wave1.len,wave2.len))])
+
+            
+            print(f"{io:<15}\t{direction}\t{DC1}\t{DC2}\t{passthrough}")  
+
+    #Open a mini shell that allows the user to run Glue Converter commands. 
+    def gcshell(self):
+
+        current_vcd = None
+        current_glue = None
+
+        while True:
+
+            user_input = input(">gcshell>").strip()
+
+            if user_input == "iospec":
+                file_path = filedialog.askopenfilename()
+                self.parse_iospec_file(file_path)
+
+            elif user_input == "getvcd":
+                current_vcd = filedialog.askopenfilename()
+                print(current_vcd)
+
+            elif user_input == "getglue":
+                current_glue = filedialog.askopenfilename()
+                print(current_glue)
+
+            elif user_input == "compare":
+                print("Getting Glue Wave 1...")
+                glue1 = filedialog.askopenfilename()
+                print("Getting Glue Wave 2...")
+                glue2 = filedialog.askopenfilename()
+                print("Glue 1:",glue1)
+                print("Glue 2:",glue2)
+                self.compare(self.parse_glue(glue1),self.parse_glue(glue2))
+
+            elif user_input == "plotglue":
+                if current_glue == None:
+                    current_glue = filedialog.askopenfilename()
+                self.plot_glue(current_glue)
+                print("Done!")
+
+            elif user_input == "vcd2glue":
+                if current_vcd == None:
+                    current_vcd = filedialog.askopenfilename()
+                vcd_timebase_ps = float(input("VCD timebase (ps)?"))
+                tb_name = input("tb name?").strip()
+                strobe_ps = float(input("Strobe (ps)?"))
+                output_file_name = input("Out file name?").strip()
+                self.parse_VCD(current_vcd, tb_name, vcd_timebase_ps, strobe_ps, output_file_name)
+                print("Done!")
+                
+
+            elif user_input == "exit" or user_input == "quit":
+                break
+
+            else:
+                print("Unrecognized")
+                continue
+                
+                

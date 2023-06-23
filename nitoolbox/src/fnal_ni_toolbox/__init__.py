@@ -5,3 +5,5 @@
 from .nidcpower import *
 
 from .nifpga import NiFpga, NiFpgaDebugger
+
+from .glue_converter import GlueConverter
