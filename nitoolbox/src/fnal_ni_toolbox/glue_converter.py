@@ -67,18 +67,28 @@ class GlueConverter():
     # parse_VCD - Parses a VCD file into a glue file.
     # PARAMS:
     #       vcd_file_name - something.vcd
-    #       tb_name - Name of the top-level testbench in your VCD
-    #       vcd_timebase_ps - Timebase of your VCD file in picoseconds
     #       strobe_ps - Basically the timebase of the output glue file in picoseconds. Should
     #                   equal GlueFPGA clock speed.
     #       output_file_name - something.glue
-    def parse_VCD(self, vcd_file_name, tb_name, vcd_timebase_ps, strobe_ps, output_file_name, inputs_only=True):
+    #
+    # OPTIONAL PARAMS (these can be parsed from the VCD automatically, but you can also override them)
+    #       tb_name - Name of the top-level testbench in your VCD
+    #       vcd_timebase_ps - Timebase of your VCD file in picoseconds
+    def parse_VCD(self, vcd_file_name, strobe_ps, output_file_name, inputs_only=True, tb_name=None, vcd_timebase_ps=None):
         # Use a library function to parse the input VCD
-        vcd = VCDVCD(vcd_file_name)
+        vcd = VCDVCD(vcd_file_name, store_scopes=True)
 
         #Assume that all signals have the same endtime.
         endtime = vcd[vcd.signals[0]].endtime
 
+        #Parse timebase and VCD name automatically. 
+        if vcd_timebase_ps == None:
+            vcd_timebase_ps = 1e12 * float(vcd.get_timescale()["timescale"])
+
+        if tb_name == None:
+            tb_name = list(vcd.hierarchy.keys())[0]
+
+            
         #The length of the output vector is endtime/STROBE
         strobe_ticks = int(strobe_ps/vcd_timebase_ps)
         vector = [0] * int(endtime/strobe_ticks)
@@ -374,8 +384,9 @@ class GlueConverter():
             elif user_input == "vcd2input" or user_input == "vcd2golden":
                 if current_vcd == None:
                     current_vcd = filedialog.askopenfilename()
-                vcd_timebase_ps = float(input("VCD timebase (ps)?"))
-                tb_name = input("tb name?").strip()
+                
+                #vcd_timebase_ps = float(input("VCD timebase (ps)?"))
+                #tb_name = input("tb name?").strip()
                 strobe_ps = float(input("Strobe (ps)?"))
                 output_file_name = input("Out file name?").strip()
 
@@ -384,7 +395,7 @@ class GlueConverter():
                 else:
                     inputs_only = True
                 
-                self.parse_VCD(current_vcd, tb_name, vcd_timebase_ps, strobe_ps, output_file_name, inputs_only)
+                self.parse_VCD(current_vcd, strobe_ps, output_file_name, inputs_only)
                 print("Done!")
                 
 
