@@ -58,6 +58,7 @@ class GlueConverter():
     #here. But we don't immediately ask for a VCD file / timebase bc you may want to use multiple
     #of those.
     def __init__(self, iospec_file=None):
+        self.loaded_iospec_file = False
         if iospec_file is not None:
             self.parse_iospec_file(iospec_file)
 
@@ -71,7 +72,7 @@ class GlueConverter():
     #       strobe_ps - Basically the timebase of the output glue file in picoseconds. Should
     #                   equal GlueFPGA clock speed.
     #       output_file_name - something.glue
-    def parse_VCD(self, vcd_file_name, tb_name, vcd_timebase_ps, strobe_ps, output_file_name):
+    def parse_VCD(self, vcd_file_name, tb_name, vcd_timebase_ps, strobe_ps, output_file_name, inputs_only=True):
         # Use a library function to parse the input VCD
         vcd = VCDVCD(vcd_file_name)
 
@@ -85,14 +86,20 @@ class GlueConverter():
         # For each timestep, find out if each input is high, and if it is,
         # then set that bit in the output vector high by adding 2^(pos) to
         # that vector.
-        for io in self.Input_IOs:
+        if inputs_only:
+            IOs_to_Plot = self.Input_IOs
+        else:
+            IOs_to_Plot = self.IOs
+        
+        for io in IOs_to_Plot:
             try:
                 for t in range(len(vector)):
                     if vcd[tb_name+"."+io][t*strobe_ticks] == "1":
                         vector[t] = vector[t] + 2**(self.IO_pos[io])
             except KeyError:
                 print("(WARN) "+tb_name+"."+io+" is NOT FOUND in VCD. Setting to default",self.IO_default[io])
-
+                for t in range(len(vector)):
+                    vector[t] = vector[t] + (2**(self.IO_pos[io]))*self.IO_default[io]
 
         #Write the resulting vector to output.glue    
         with open(output_file_name,'w') as write_file:
@@ -139,31 +146,37 @@ class GlueConverter():
             start_time = 0
             end_time = len(vector)*strobe_ps
 
-        #Create the time vector in nanoseconds.
-        time_vector = [i*strobe_ps/1000 for i in range(len(vector))]
+        #Put the IO waves in list form.
+        IO_waves = [None] * len(self.IOs)
 
-        IO_wave = [None] * len(self.IOs)
+        for i in range(len(self.IOs)):
+            IO_waves[i] = [(v & 2**self.IO_pos[self.IOs[i]] > 0) for v in vector]
 
+        #Plot
+        self.plot_waves(IO_waves,self.IOs, strobe_ps)
+        
+    # plot_waves
+    # This plotting function is intended to work on an arbitrary number of binary signals.
+    # PARAMS:
+    #       waves - List of waves, defined as integer lists.
+    #       wave_names - List of the names of these waves, matching 1-to-1 with the waves themselves.
+    def plot_waves(self, waves, wave_names, strobe_ps):
+        assert len(waves) > 0 and len(waves) == len(wave_names)
+        
         #beren.this line is updates to work with more IO.
-        #beren. Number of rows = number of IOs, dim of the figure sclaed according to the number of IOs
+        #beren. Number of rows = number of IOs, dim of the figure scaled according to the number of IOs
         #beren. x-axis is shared among all subplots.
-        # fig,ax = plt.subplots(len(IOs))
-        fig, axes = plt.subplots(nrows=len(self.IOs), figsize=(10, 2 * len(self.IOs)), sharex=True)
+        fig, axes = plt.subplots(nrows=len(waves), figsize=(10, 2 * len(waves)), sharex=True)
         fig.subplots_adjust(hspace=0.5)
 
+        #Create the time vector in nanoseconds.
+        time_vector = [i*strobe_ps/1000 for i in range(len(waves[0]))]
 
-        #Get an individual wave for each IO which is 1 where that IO is
-        #1 and zero otherwise.
-        # for i in range(len(IOs)):
         for i, ax in enumerate(axes):#beren
-            IO_wave[i] = [(v & 2**self.IO_pos[self.IOs[i]] > 0) for v in vector]
 
-            # ax[i].set_ylabel(IOs[i].split(".")[-1], rotation='horizontal')
-            # ax[i].plot(time_vector, IO_wave[i])
-            
             #beren. I put spaces between the y-axis name and the IO name
-            ax.set_ylabel(self.IOs[i] + "                ", rotation='horizontal') #beren
-            ax.step(time_vector, IO_wave[i])#beren
+            ax.set_ylabel(wave_names[i] + "                ", rotation='horizontal') #beren
+            ax.step(time_vector, waves[i])#beren
             ax.set_ylim(-0.5, 1.5)#beren
             ax.set_yticks([0, 0.5,1])#beren
             ax.yaxis.set_tick_params(labelleft=False) #Hide y-axis ticks since they are redundant.
@@ -174,8 +187,6 @@ class GlueConverter():
 
         plt.xlabel("ns")
         plt.show()
-
-
 
     #Reads an IO spec in the format specified above, and parses
     #its information into lists and dictionaries so it can be
@@ -211,6 +222,8 @@ class GlueConverter():
                     self.IO_default[sig_name] = int(line_tokens[3])
                 else:
                     self.IO_default[sig_name] = 0
+                    
+        self.loaded_iospec_file = True
             
     def compare(self, wave1, wave2):
 
@@ -232,11 +245,63 @@ class GlueConverter():
             
             print(f"{io:<15}\t{direction}\t{DC1}\t{DC2}\t{passthrough}")  
 
+
+    def diff(self, wave1, wave2, diff_signals):
+
+        #A single string should be treated as a list of length 1.
+        if type(diff_signals) == str:
+            diff_signals = [diff_signals]
+        
+        signals = []
+        signal_names = []
+
+        for i in range(len(diff_signals)):
+
+            signal_names.append(diff_signals[i]+"(1)")
+            sig1 = [1 if x & (1 << self.IO_pos[diff_signals[i]]) else 0 for x in wave1.vector]
+            signals.append(sig1)
+
+            signal_names.append(diff_signals[i]+"(2)")
+            sig2 = [1 if x & (1 << self.IO_pos[diff_signals[i]]) else 0 for x in wave2.vector]
+            signals.append(sig2)
+
+            signal_names.append("diff("+diff_signals[i]+")")
+            signals.append([1 if sig1[i] != sig2[i] else 0 for i in range(min(wave1.len, wave2.len))])
+            
+
+        self.plot_waves(signals,signal_names,wave1.strobe_ps)
+
+    # export_clocked_bitstream
+    # Converts a Glue waveform with a data signal and its corresponding clock into a bit stream!
+    def export_clocked_bitstream(self, wave, clock_name, data_name, outfile):
+
+        bitstream = []
+
+        clock_sig = [1 if x & (1 << self.IO_pos[clock_name]) else 0 for x in wave.vector]
+        data_sig =  [1 if x & (1 << self.IO_pos[data_name]) else 0 for x in wave.vector]
+        
+        for i in range(1,len(wave.vector)):
+            if clock_sig[i] == 1 and clock_sig[i-1] == 0:
+                bitstream.append(data_sig[i-1])
+
+        with open(outfile,"w") as write_file:
+            write_file.write(",".join([str(i) for i in bitstream]))
+            
+
     #Open a mini shell that allows the user to run Glue Converter commands. 
     def gcshell(self):
 
         current_vcd = None
         current_glue = None
+        wave1 = None
+        wave2 = None
+
+        command_list = ["iospec","getvcd","getglue","bits","compare","diff","plotglue","vcd2input","vcd2golden","exit","quit"]
+
+        if not self.loaded_iospec_file:
+            print("Load an iospec file...")
+            file_path = filedialog.askopenfilename()
+            self.parse_iospec_file(file_path)
 
         while True:
 
@@ -245,6 +310,13 @@ class GlueConverter():
             if user_input == "iospec":
                 file_path = filedialog.askopenfilename()
                 self.parse_iospec_file(file_path)
+                print(file_path)
+
+            elif user_input == "clr":
+                current_vcd = None
+                current_glue = None
+                wave1 = None
+                wave2 = None
 
             elif user_input == "getvcd":
                 current_vcd = filedialog.askopenfilename()
@@ -254,14 +326,44 @@ class GlueConverter():
                 current_glue = filedialog.askopenfilename()
                 print(current_glue)
 
+            elif user_input == "bits":
+                current_glue = filedialog.askopenfilename()
+                clock_name = input("Clock name?").strip()
+                data_name = input("Data name?").strip()
+                outfile = input("Output file name?").strip()
+                self.export_clocked_bitstream(self.parse_glue(current_glue), clock_name, data_name, outfile)
+
             elif user_input == "compare":
-                print("Getting Glue Wave 1...")
-                glue1 = filedialog.askopenfilename()
-                print("Getting Glue Wave 2...")
-                glue2 = filedialog.askopenfilename()
-                print("Glue 1:",glue1)
-                print("Glue 2:",glue2)
-                self.compare(self.parse_glue(glue1),self.parse_glue(glue2))
+                if wave1 == None:
+                    print("Getting Glue Wave 1...")
+                    glue1 = filedialog.askopenfilename()
+                    print("Getting Glue Wave 2...")
+                    glue2 = filedialog.askopenfilename()
+                    print("Glue 1:",glue1)
+                    print("Glue 2:",glue2)
+                    wave1 = self.parse_glue(glue1)
+                    wave2 = self.parse_glue(glue2)
+                    
+                self.compare(wave1,wave2)
+
+            elif user_input == "diff":
+                if wave1 == None:
+                    print("Getting Glue Wave 1...")
+                    glue1 = filedialog.askopenfilename()
+                    print("Getting Glue Wave 2...")
+                    glue2 = filedialog.askopenfilename()
+                    print("Glue 1:",glue1)
+                    print("Glue 2:",glue2)
+                    wave1 = self.parse_glue(glue1)
+                    wave2 = self.parse_glue(glue2)
+
+                diff_sig = input("Diff signal?").strip()
+
+                #Allow multiple signals:
+                if "," in diff_sig:
+                    diff_sig = diff_sig.split(",")
+                
+                self.diff(wave1,wave2,diff_sig)
 
             elif user_input == "plotglue":
                 if current_glue == None:
@@ -269,14 +371,20 @@ class GlueConverter():
                 self.plot_glue(current_glue)
                 print("Done!")
 
-            elif user_input == "vcd2glue":
+            elif user_input == "vcd2input" or user_input == "vcd2golden":
                 if current_vcd == None:
                     current_vcd = filedialog.askopenfilename()
                 vcd_timebase_ps = float(input("VCD timebase (ps)?"))
                 tb_name = input("tb name?").strip()
                 strobe_ps = float(input("Strobe (ps)?"))
                 output_file_name = input("Out file name?").strip()
-                self.parse_VCD(current_vcd, tb_name, vcd_timebase_ps, strobe_ps, output_file_name)
+
+                if "golden" in user_input:
+                    inputs_only = False
+                else:
+                    inputs_only = True
+                
+                self.parse_VCD(current_vcd, tb_name, vcd_timebase_ps, strobe_ps, output_file_name, inputs_only)
                 print("Done!")
                 
 
@@ -284,7 +392,7 @@ class GlueConverter():
                 break
 
             else:
-                print("Unrecognized")
+                print("Unrecognized. Try one of these commands: ","; ".join(command_list))
                 continue
                 
                 
