@@ -9,12 +9,17 @@
 # CSV containing all the waveforms in order.
 #
 # IO Spec Format:
-# Each line is: {name},{I/O},{position},{optional default value}
+# Each I/O line is: {name},{I/O},{position},{optional default value}
 # Where: {name} is the signal name in the testbench
 #        {I/O}  is I for inputs to the ASIC, O for outputs from the ASIC
 #        {position} is the position of this signal in the bit vector that
 #                   will be given to the FPGA, which is determined by the PCB.
 #
+# I/O lines are grouped by the hardware resource they belong to, with the following
+# scope statements:
+# HARDWARE SLOT/MODULE/FIFO BEGIN
+# ...
+# END
 #
 # Basic Example:
 # Suppose the testbench contains 3 signals, A, B, and C with this pattern:
@@ -25,13 +30,16 @@
 #
 # And the iospect file is the following:
 #
+# HARDWARE PXI1Slot5/NI6583/se_io BEGIN
 # A,I,2
 # B,I,0
 # C,I,1
+# END
 #
 # The expected content of output.glue is:
 #
 # 2, 1, 6, 7
+# //HARDWARE:PXI1Slot5/NI6583/se_io
 #
 # Expressed in binary, these numbers are: 
 #
@@ -43,13 +51,39 @@ import matplotlib.pyplot as plt
 import tkinter as tk
 from tkinter import filedialog
 
-
+#GlueWave() - Class to hold a Glue wave and all of its metadata.
+#
+# PROPERTIES:
+# strobe_ps - The strobe period of the Glue waveform, i.e. how much (simulation) time each sample represents.
+#             May not be the same as the actual length of the sample period as output by the FPGA, which is
+#             fixed by the hardware clock.
+# hardware  - 3-tuple of [SLOT, MODULE, FIFO]. Example: ["PXI1Slot5", "NI6583", "se_io"]
+# metadata  - OPTIONAL additional metadata as key/value pairs.
 class GlueWave():
 
-    def __init__(self, vector, strobe_ps):
+    def __init__(self, vector, strobe_ps, hardware, metadata={}):
         self.vector = vector
         self.strobe_ps = strobe_ps
         self.len = len(self.vector)
+        if type(hardware) == str:
+            self.hardware = hardware.split("/")
+        else:
+            self.hardware = hardware
+
+        #Convenient access for the fpga-related or fifo-related
+        #part of the hw designation.
+        self.hardware_str = "/".join(self.hardware)
+        self.fpga_name = "/".join(self.hardware[0:2])
+        self.fifo_name = self.hardware[2]
+            
+        self.metadata = {}
+
+    def set_bit(self, t, bit_pos, value):
+        if value == 1:
+            self.vector[t] = self.vector[t] | (1 << bit_pos)
+        else:
+            self.vector[t] = self.vector[t] & (~(1 << bit_pos))                                     
+        
 
 class GlueConverter():
 
@@ -61,20 +95,20 @@ class GlueConverter():
         self.loaded_iospec_file = False
         if iospec_file is not None:
             self.parse_iospec_file(iospec_file)
+                
 
-
-
-    # parse_VCD - Parses a VCD file into a glue file.
+    # VCD2Glue - Parses a VCD file into a glue file.
     # PARAMS:
     #       vcd_file_name - something.vcd
     #       strobe_ps - Basically the timebase of the output glue file in picoseconds. Should
     #                   equal GlueFPGA clock speed.
-    #       output_file_name - something.glue
+    #       output_file_tag - What the output files should be called.
     #
     # OPTIONAL PARAMS (these can be parsed from the VCD automatically, but you can also override them)
     #       tb_name - Name of the top-level testbench in your VCD
     #       vcd_timebase_ps - Timebase of your VCD file in picoseconds
-    def parse_VCD(self, vcd_file_name, strobe_ps, output_file_name, inputs_only=True, tb_name=None, vcd_timebase_ps=None):
+    def VCD2Glue(self, vcd_file_name, strobe_ps, output_file_tag, inputs_only=True, tb_name=None, vcd_timebase_ps=None):
+        
         # Use a library function to parse the input VCD
         vcd = VCDVCD(vcd_file_name, store_scopes=True)
 
@@ -88,45 +122,68 @@ class GlueConverter():
         if tb_name == None:
             tb_name = list(vcd.hierarchy.keys())[0]
 
-            
+        
         #The length of the output vector is endtime/STROBE
         strobe_ticks = int(strobe_ps/vcd_timebase_ps)
-        vector = [0] * int(endtime/strobe_ticks)
+        vector_len = int(endtime/strobe_ticks)
+
+        #We will create a separate GlueWave() for EACH hardware found in the iospec file:
+        # list(set(x)) == uniquify(x)
+        hw_list = list(set(self.IO_hardware.values()))
+        waves = {}
+        for hw in hw_list:
+            waves[hw] = GlueWave([0]*vector_len, strobe_ps, hw, {"VCD_TIMEBASE_PICOSECONDS":str(vcd_timebase_ps),
+                                                                 "GLUE_TIMESTEPS":str(vector_len)})
+            
         
-        # For each timestep, find out if each input is high, and if it is,
-        # then set that bit in the output vector high by adding 2^(pos) to
-        # that vector.
+        #Now we will go through each input and add them one by one to the correct Glue wave.
         if inputs_only:
             IOs_to_Plot = self.Input_IOs
         else:
             IOs_to_Plot = self.IOs
         
         for io in IOs_to_Plot:
+            hw = self.IO_hardware[io]
+            
             try:
-                for t in range(len(vector)):
+                for t in range(len(waves[hw].vector)):
                     if vcd[tb_name+"."+io][t*strobe_ticks] == "1":
-                        vector[t] = vector[t] + 2**(self.IO_pos[io])
+                        waves[hw].set_bit(t,self.IO_pos[io],1)
+                        
             except KeyError:
                 print("(WARN) "+tb_name+"."+io+" is NOT FOUND in VCD. Setting to default",self.IO_default[io])
-                for t in range(len(vector)):
-                    vector[t] = vector[t] + (2**(self.IO_pos[io]))*self.IO_default[io]
-
-        #Write the resulting vector to output.glue    
-        with open(output_file_name,'w') as write_file:
-            write_file.write(",".join([str(x) for x in vector]))
-            write_file.write("\n")
-            write_file.write("//VCD_TIMEBASE_PICOSECONDS:"+str(vcd_timebase_ps)+"\n")
-            write_file.write("//STROBE_PICOSECONDS:"+str(strobe_ps)+"\n")
-            write_file.write("//GLUE_TIMESTEPS:"+str(len(vector))+"\n")
+                for t in range(len(waves[hw].vector)):
+                    waves[hw].set_bit(t,self.IO_pos[io],self.IO_default[io])
+            
+        #Write glue waves to file.
+        for glue_wave in waves.values():
+            name = output_file_tag+"_"+glue_wave.hardware[2]+".glue"
+            print("Writing",name,"...")
+            self.write_glue(glue_wave, name)
 
 
         print("Glue Converter finished!")
+        print("Total of",len(waves.keys()),"file(s) written.")
         print("Timebase of input file was:",vcd_timebase_ps,"ps")
         print("Length of input file was:",endtime*vcd_timebase_ps/1000000,"us")
         print("Strobe was:",strobe_ps,"ps")
-        print("# of timesteps was:",len(vector))
-        
-    def parse_glue(self,glue_file_name):
+        print("# of timesteps was:",vector_len)
+
+
+    #Write a GlueWave() object to file. 
+    def write_glue(self, glue_wave, output_file_name):
+        with open(output_file_name,'w') as write_file:
+            write_file.write(",".join([str(x) for x in glue_wave.vector]))
+            write_file.write("\n")
+            #Mandatory metadata
+            write_file.write("//STROBE_PICOSECONDS:"+str(glue_wave.strobe_ps)+"\n")
+            write_file.write("//HARDWARE:"+"/".join(glue_wave.hardware)+"\n")
+            #Optional metadata
+            for key in glue_wave.metadata.keys():
+                write_file.write("//"+str(key)+":"+str(glue_wave.metadata[key])+"\n")
+
+    #Read a Glue file into a GlueWave() object.      
+    def read_glue(self,glue_file_name):
         with open(glue_file_name,"r") as read_file:
             lines = read_file.readlines()
 
@@ -138,8 +195,10 @@ class GlueConverter():
         for line in lines:
             if "STROBE" in line:   
                 strobe_ps = float(line.strip().split(":")[-1])
+            if "HARDWARE" in line:
+                hardware = line.strip().split(":")[-1]
 
-        return GlueWave(vector,strobe_ps)
+        return GlueWave(vector,strobe_ps,hardware)
 
     #Plots a glue waveform using matplotlib. Useful for debugging.
     def plot_glue(self,glue_file,time_interval_ps=None):
@@ -214,24 +273,43 @@ class GlueConverter():
         self.IO_dir = {}
         self.IO_pos = {}
         self.IO_default = {}
+        self.IO_hardware = {} # str representation
+        self.IO_hardware_count = 0
 
+
+        current_hw = None
+        
         for line in iospec_lines:
             if len(line) > 1 and not line.startswith("//"): #Allow empty lines and comments using "//" in the iospec file.
-                line_tokens = line.split(",")
-                sig_name = line_tokens[0] #{name}
-                self.IOs.append(sig_name)              
-                self.IO_dir[sig_name] = line_tokens[1] #{I/O}
-                if line_tokens[1] == "I":
-                    self.Input_IOs.append(sig_name)
-                else:
-                    self.Output_IOs.append(sig_name)
-                self.IO_pos[sig_name] = int(line_tokens[2]) #{position}
 
-                #Support {optional default value}
-                if len(line_tokens) > 3:
-                    self.IO_default[sig_name] = int(line_tokens[3])
+                if line.startswith("HARDWARE"):
+                    current_hw = line.split()[1]
+                    self.IO_hardware_count = self.IO_hardware_count + 1
+                elif line.startswith("END"):
+                    current_hw = ""
+                elif current_hw != "":
+                    line_tokens = line.split(",")
+                    sig_name = line_tokens[0] #{name}
+                    self.IOs.append(sig_name)
+                    
+                    self.IO_dir[sig_name] = line_tokens[1] #{I/O}
+                    if line_tokens[1] == "I":
+                        self.Input_IOs.append(sig_name)
+                    else:
+                        self.Output_IOs.append(sig_name)
+                        
+                    self.IO_pos[sig_name] = int(line_tokens[2]) #{position}
+
+                    self.IO_hardware[sig_name] = current_hw #{hardware}
+
+                    #Support {optional default value}
+                    if len(line_tokens) > 3:
+                        self.IO_default[sig_name] = int(line_tokens[3])
+                    else:
+                        self.IO_default[sig_name] = 0
                 else:
-                    self.IO_default[sig_name] = 0
+                    print("IOSPEC PARSE ERR: Line \""+line+"\" has no hardware associated with it!")
+                    return -1
                     
         self.loaded_iospec_file = True
             
@@ -388,14 +466,14 @@ class GlueConverter():
                 #vcd_timebase_ps = float(input("VCD timebase (ps)?"))
                 #tb_name = input("tb name?").strip()
                 strobe_ps = float(input("Strobe (ps)?"))
-                output_file_name = input("Out file name?").strip()
+                output_file_name = input("Out file tag?").strip()
 
                 if "golden" in user_input:
                     inputs_only = False
                 else:
                     inputs_only = True
                 
-                self.parse_VCD(current_vcd, strobe_ps, output_file_name, inputs_only)
+                self.VCD2Glue(current_vcd, strobe_ps, output_file_name, inputs_only)
                 print("Done!")
                 
 
