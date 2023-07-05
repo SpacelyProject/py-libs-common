@@ -83,6 +83,9 @@ class GlueWave():
             self.vector[t] = self.vector[t] | (1 << bit_pos)
         else:
             self.vector[t] = self.vector[t] & (~(1 << bit_pos))                                     
+
+    def get_trace(self, bit_pos):
+        return [(v & 2**bit_pos > 0) for v in self.vector]
         
 
 class GlueConverter():
@@ -203,7 +206,10 @@ class GlueConverter():
     #Plots a glue waveform using matplotlib. Useful for debugging.
     def plot_glue(self,glue_file,time_interval_ps=None):
 
-        wave = self.parse_glue(glue_file)
+        if type(glue_file) == str:
+            wave = self.read_glue(glue_file)
+        else:
+            wave = glue_file
         vector = wave.vector
         strobe_ps = wave.strobe_ps
 
@@ -216,13 +222,19 @@ class GlueConverter():
             end_time = len(vector)*strobe_ps
 
         #Put the IO waves in list form.
-        IO_waves = [None] * len(self.IOs)
+        IO_waves = []  
+        IO_wave_names = []
 
         for i in range(len(self.IOs)):
-            IO_waves[i] = [(v & 2**self.IO_pos[self.IOs[i]] > 0) for v in vector]
+            io = self.IOs[i]
+            #Only plot IOs which correspond to the hardware that generated this Glue wave (others will be zero)
+            print("(DBG)",self.IO_hardware[io],wave.hardware_str)
+            if self.IO_hardware[io] == wave.hardware_str:
+                IO_waves.append([(v & 2**self.IO_pos[self.IOs[i]] > 0) for v in vector])
+                IO_wave_names.append(io)
 
         #Plot
-        self.plot_waves(IO_waves,self.IOs, strobe_ps)
+        self.plot_waves(IO_waves,IO_wave_names, strobe_ps)
         
     # plot_waves
     # This plotting function is intended to work on an arbitrary number of binary signals.
@@ -411,15 +423,38 @@ class GlueConverter():
                 print(current_vcd)
 
             elif user_input == "getglue":
-                current_glue = filedialog.askopenfilename()
-                print(current_glue)
+                glue_file = filedialog.askopenfilename()
+                print(glue_file)
+                current_glue = self.read_glue(glue_file)
+
+            elif user_input == "edit":
+                if current_glue == None:
+                    glue_file = filedialog.askopenfilename()
+                    print(glue_file)
+                    current_glue = self.read_glue(glue_file)
+                t = int(input("t?"))
+                bit_pos = int(input("bit_pos?"))
+                value = int(input("value?"))
+                current_glue.set_bit(t,bit_pos,value)
+                print("Set bit",bit_pos,"at time",t,"to",value)
+
+            elif user_input == "writeglue":
+                if current_glue == None:
+                    glue_file = filedialog.askopenfilename()
+                    print(glue_file)
+                    current_glue = self.read_glue(glue_file)
+                filename = input("File name?").strip()
+                self.write_glue(current_glue,filename)
+                print("Wrote to",filename)
 
             elif user_input == "bits":
-                current_glue = filedialog.askopenfilename()
+                glue_file = filedialog.askopenfilename()
+                print(glue_file)
+                current_glue = self.read_glue(glue_file)
                 clock_name = input("Clock name?").strip()
                 data_name = input("Data name?").strip()
                 outfile = input("Output file name?").strip()
-                self.export_clocked_bitstream(self.parse_glue(current_glue), clock_name, data_name, outfile)
+                self.export_clocked_bitstream(current_glue, clock_name, data_name, outfile)
 
             elif user_input == "compare":
                 if wave1 == None:
@@ -429,8 +464,8 @@ class GlueConverter():
                     glue2 = filedialog.askopenfilename()
                     print("Glue 1:",glue1)
                     print("Glue 2:",glue2)
-                    wave1 = self.parse_glue(glue1)
-                    wave2 = self.parse_glue(glue2)
+                    wave1 = self.read_glue(glue1)
+                    wave2 = self.read_glue(glue2)
                     
                 self.compare(wave1,wave2)
 
@@ -442,8 +477,8 @@ class GlueConverter():
                     glue2 = filedialog.askopenfilename()
                     print("Glue 1:",glue1)
                     print("Glue 2:",glue2)
-                    wave1 = self.parse_glue(glue1)
-                    wave2 = self.parse_glue(glue2)
+                    wave1 = self.read_glue(glue1)
+                    wave2 = self.read_glue(glue2)
 
                 diff_sig = input("Diff signal?").strip()
 
@@ -455,7 +490,9 @@ class GlueConverter():
 
             elif user_input == "plotglue":
                 if current_glue == None:
-                    current_glue = filedialog.askopenfilename()
+                    glue_file = filedialog.askopenfilename()
+                    print(glue_file)
+                    current_glue = self.read_glue(glue_file)
                 self.plot_glue(current_glue)
                 print("Done!")
 
