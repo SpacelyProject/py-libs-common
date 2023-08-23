@@ -51,6 +51,31 @@ import matplotlib.pyplot as plt
 import tkinter as tk
 from tkinter import filedialog
 
+
+GCSHELL_HELPTEXT="""
+< < < gcshell help > > >
+getvcd    --\tLoad a new VCD file.
+getglue   --\tLoad a new Glue file.
+iospec    --\tLoad a new iospect file.
+clr       --\tClear currently loaded files.
+
+forcesignal--\tForce a particular bit high/low throughout the glue wave.
+editbit    --\tEdit a single bit in the current Glue wave at timestep t
+writeglue --\tWrite the current Glue wave to file.
+bits      --\tExport a clocked bitstream from a Glue wave.
+
+vcd2input/vcd2golden
+          --\tConvert a VCD to an input Glue file (inputs only) or a golden Glue file (inputs+outputs)
+
+compare   --\tGet a rough comparison of the signals in two Glue files.
+
+plotglue  --\tPlot the current Glue wave.
+diff      --\tPlot the diff between a given signal in two different Glue waves.
+
+exit/quit --\tExit gcshell.
+
+"""
+
 #GlueWave() - Class to hold a Glue wave and all of its metadata.
 #
 # PROPERTIES:
@@ -228,7 +253,7 @@ class GlueConverter():
         for i in range(len(self.IOs)):
             io = self.IOs[i]
             #Only plot IOs which correspond to the hardware that generated this Glue wave (others will be zero)
-            print("(DBG)",self.IO_hardware[io],wave.hardware_str)
+            #print("(DBG)",self.IO_hardware[io],wave.hardware_str)
             if self.IO_hardware[io] == wave.hardware_str:
                 IO_waves.append([(v & 2**self.IO_pos[self.IOs[i]] > 0) for v in vector])
                 IO_wave_names.append(io)
@@ -427,7 +452,25 @@ class GlueConverter():
                 print(glue_file)
                 current_glue = self.read_glue(glue_file)
 
-            elif user_input == "edit":
+
+            elif user_input == "forcesignal":
+                if current_glue == None:
+                    glue_file = filedialog.askopenfilename()
+                    print(glue_file)
+                    current_glue = self.read_glue(glue_file)
+                sig_name = input("sig_name?")
+
+                try:
+                    bit_pos = self.IO_pos[sig_name]
+                except ValueError:
+                    print("(gcshell error) Couldn't find that signal in current iospec.")
+                    continue
+                force_val = int(input("force value (0 or 1)?"))
+                for t in range(current_glue.len):
+                    current_glue.set_bit(t,bit_pos,force_val)
+                print("Done! Forced",sig_name,"to",force_val)
+
+            elif user_input == "editbit":
                 if current_glue == None:
                     glue_file = filedialog.askopenfilename()
                     print(glue_file)
@@ -518,7 +561,8 @@ class GlueConverter():
                 break
 
             else:
-                print("Unrecognized. Try one of these commands: ","; ".join(command_list))
+                print("Unrecognized.")
+                print(GCSHELL_HELPTEXT)
                 continue
                 
                 
