@@ -111,7 +111,78 @@ class GlueWave():
 
     def get_trace(self, bit_pos):
         return [(v & 2**bit_pos > 0) for v in self.vector]
+
+
+
+
+# AsciiWave()
+#
+# Class to create / print human-readable ascii waves
+class AsciiWave():
+    def __init__(self):
+        self.signals = {}
+
+    def init_signal(self, sig_name, init_val):
+        self.signals[sig_name]=str(init_val)
+
+    def init_signals(self, sig_val_list):
+        for x in sig_val_list:
+            self.init_signal(x[0],x[1])
+
+    def _extend_signal(self, sig_name, n):
+        last_val = self.signals[sig_name][-1]
+        self.signals[sig_name] = self.signals[sig_name] + n*last_val
+
+    
+    #ex: AsciiWave.set_signal("scanEn", 1)
+    def set_signal(self, sig_name, set_val):
+        for signal in self.signals.keys():
+            if signal == sig_name:
+                self.signals[signal] = self.signals[signal]+str(set_val)
+            else:
+                self._extend_signal(signal,1)
+
+    def pulse_signal(self, sig_name, posedge=True):
+
+        if posedge:
+            pulse = "010"
+        else:
+            pulse = "101"
+
+        for signal in self.signals.keys():
+            if signal == sig_name:
+                self.signals[signal] = self.signals[signal]+pulse
+            else:
+                self._extend_signal(signal,3)
+
+    # custom_wave()
+    # Apply a custom wave across multiple signals simultaneously.
+    # ex: AsciiWave.custom_wave({"A":"010","B":"101"})
+    # Must have the same number of bits across all signals.
+    def custom_wave(self, custom_wave):
+
+        custom_wave_len = len(custom_wave[custom_wave.keys()[0]])
+
+        #Check wave lengths
+        for w in custom_wave.keys():
+            if len(custom_wave[w]) != custom_wave_len:
+                print("ERR from custom wave: When generating a custom wave, all signals must have the same pattern length.")
+                print("In the provided wave,",custom_wave.keys()[0],"has pattern length",custom_wave_len,"but",w,"has pattern length",len(custom_wave[w]))
+                return
+
         
+        for signal in self.signals.keys():
+            if signal in custom_wave.keys():
+                self.signals[signal] = self.signals[signal]+custom_wave[signal]
+            else:
+                self._extend_signal(signal,custom_wave_len)
+
+    def write(self, filename):
+        with open(filename,'w') as write_file:
+            for sig in self.signals.keys():
+                write_file.write(sig+":\t"+self.signals[sig]+"\n")
+                
+                
 
 class GlueConverter():
 
@@ -197,6 +268,94 @@ class GlueConverter():
         print("Strobe was:",strobe_ps,"ps")
         print("# of timesteps was:",vector_len)
 
+
+    #ascii2Glue - Accepts an ascii-formatted file and converts it to a glue wave.
+    def ascii2Glue(self, ascii_file_name, ticks_per_bit, output_file_tag, inputs_only=True):
+
+        with open(ascii_file_name, 'r') as read_file:
+            ascii_lines = read_file.readlines()
+
+        #Each line in the ascii file should be:
+        #{io_name}: {bitstring}
+        bitstrings = {}
+
+        for line in ascii_lines:
+            x = line.split(":")
+            bitstrings[x[0].strip()] = x[1].strip()
+
+        #Vector length is determined by the length of the longest bitstring.
+        bitstring_len = max([len(b) for b in bitstrings.values()])
+        vector_len = ticks_per_bit*bitstring_len
+
+        #We will create a separate GlueWave() for EACH hardware found in the iospec file:
+        # list(set(x)) == uniquify(x)
+        hw_list = list(set(self.IO_hardware.values()))
+        waves = {}
+        for hw in hw_list:
+            #NOTE: strobe_ps of 25000 (=25 ns) comes from assuming a default FPGA clock of 40 MHz. 
+            waves[hw] = GlueWave([0]*vector_len, 25000, hw, {"GLUE_TIMESTEPS":str(vector_len)})
+
+        
+        #Now we will go through each input and add them one by one to the correct Glue wave.
+        if inputs_only:
+            IOs_to_Plot = self.Input_IOs
+        else:
+            IOs_to_Plot = self.IOs
+        
+        for io in IOs_to_Plot:
+            hw = self.IO_hardware[io]
+            
+            
+            
+            try:
+                b = bitstrings[io]
+                for t in range(bitstring_len):
+                    if t < len(b):
+                        if b[t] == "1":
+                            for i in range(ticks_per_bit):
+                                waves[hw].set_bit(t*ticks_per_bit+i,self.IO_pos[io],1)
+                    else:
+                        #If a bitstring ends early, that value should be held for the whole period.
+                        if b[t-1] == "1":
+                            for i in range(ticks_per_bit):
+                                waves[hw].set_bit(t*ticks_per_bit+i,self.IO_pos[io],1)
+                        
+            except KeyError:
+                print("(WARN) "+io+" is NOT FOUND in ascii file. Setting to default",self.IO_default[io])
+                for t in range(len(waves[hw].vector)):
+                    waves[hw].set_bit(t,self.IO_pos[io],self.IO_default[io])
+            
+        #Write glue waves to file.
+        for glue_wave in waves.values():
+            name = output_file_tag+"_"+glue_wave.hardware[2]+".glue"
+            print("Writing",name,"...")
+            self.write_glue(glue_wave, name)
+
+
+        print("Glue Converter finished!")
+        print("Total of",len(waves.keys()),"file(s) written.")
+        print("# of timesteps was:",vector_len)
+
+    #NOT COMPLETE
+    def data2Glue(self, data_file_name, clock_pin_name, data_pin_name, output_file_tag, glue_ticks_per_bit, inputs_only=True):
+
+        if glue_ticks_per_bit < 2:
+            print("ERR: data2Glue requires glue_ticks_per_bit > 2, actual value:",glue_ticks_per_bit)
+            return
+
+        with open(data_file_name, 'r') as read_file:
+            data_string = read_file.read()
+
+        
+        
+        #We will create a separate GlueWave() for EACH hardware found in the iospec file:
+        # list(set(x)) == uniquify(x)
+        hw_list = list(set(self.IO_hardware.values()))
+        waves = {}
+        for hw in hw_list:
+            waves[hw] = GlueWave([0]*vector_len, 0, hw, {"VCD_TIMEBASE_PICOSECONDS":str(vcd_timebase_ps),
+                                                                 "GLUE_TIMESTEPS":str(vector_len)})
+        
 
     #Write a GlueWave() object to file. 
     def write_glue(self, glue_wave, output_file_name):
@@ -555,7 +714,20 @@ class GlueConverter():
                 
                 self.VCD2Glue(current_vcd, strobe_ps, output_file_name, inputs_only)
                 print("Done!")
+
+            elif user_input == "ascii2input" or user_input == "ascii2golden":
+                current_ascii = filedialog.askopenfilename()
+
+                ticks_per_bit = int(input("ticks per bit?"))
+                output_file_name = input("Out file tag?").strip()
+
+                if "golden" in user_input:
+                    inputs_only = False
+                else:
+                    inputs_only = True
                 
+                self.ascii2Glue(current_ascii, ticks_per_bit, output_file_name, inputs_only)
+                print("Done!")
 
             elif user_input == "exit" or user_input == "quit":
                 break

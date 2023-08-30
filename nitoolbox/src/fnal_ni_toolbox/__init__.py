@@ -6,4 +6,4 @@ from .nidcpower import *
 
 from .nifpga import NiFpga, NiFpgaDebugger
 
-from .glue_converter import GlueConverter, GlueWave
+from .glue_converter import GlueConverter, GlueWave, AsciiWave
