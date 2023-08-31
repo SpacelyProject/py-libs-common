@@ -161,7 +161,7 @@ class AsciiWave():
     # Must have the same number of bits across all signals.
     def custom_wave(self, custom_wave):
 
-        custom_wave_len = len(custom_wave[custom_wave.keys()[0]])
+        custom_wave_len = len(custom_wave[next(iter(custom_wave))])
 
         #Check wave lengths
         for w in custom_wave.keys():
