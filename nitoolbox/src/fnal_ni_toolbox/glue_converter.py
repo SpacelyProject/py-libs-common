@@ -90,6 +90,7 @@ class GlueWave():
         self.vector = vector
         self.strobe_ps = strobe_ps
         self.len = len(self.vector)
+        self.mask = 0
         if type(hardware) == str:
             self.hardware = hardware.split("/")
         else:
@@ -102,6 +103,18 @@ class GlueWave():
         self.fifo_name = self.hardware[2]
             
         self.metadata = {}
+
+
+    #Set all bits in the mask to true. Useful for efficiently setting
+    #a large number of default bits. 
+    def set_mask_bit(self, bit_pos, value):
+        if value == 1:
+            self.mask = self.mask | (1 << bit_pos)
+        else:
+            self.mask = self.mask & (~(1 << bit_pos))
+
+    def apply_mask(self):
+        self.vector = [x | self.mask for x in self.vector]
 
     def set_bit(self, t, bit_pos, value):
         if value == 1:
@@ -211,8 +224,9 @@ class GlueConverter():
         # Use a library function to parse the input VCD
         vcd = VCDVCD(vcd_file_name, store_scopes=True)
 
-        #Assume that all signals have the same endtime.
+        #Assume that all signals have the same starttime/endtime.
         endtime = vcd[vcd.signals[0]].endtime
+        starttime = vcd[vcd.signals[0]].tv[0][0]
 
         #Parse timebase and VCD name automatically. 
         if vcd_timebase_ps == None:
@@ -224,7 +238,9 @@ class GlueConverter():
         
         #The length of the output vector is endtime/STROBE
         strobe_ticks = int(strobe_ps/vcd_timebase_ps)
-        vector_len = int(endtime/strobe_ticks)
+        vector_len = int((endtime-starttime)/strobe_ticks)
+
+        print("Generating input w/ vector length:",vector_len,"...")
 
         #We will create a separate GlueWave() for EACH hardware found in the iospec file:
         # list(set(x)) == uniquify(x)
@@ -240,19 +256,31 @@ class GlueConverter():
             IOs_to_Plot = self.Input_IOs
         else:
             IOs_to_Plot = self.IOs
+
+
+        defaults_mask = 0
         
         for io in IOs_to_Plot:
             hw = self.IO_hardware[io]
+
+            print("Setting",tb_name+"."+io+"...",end='',flush=True)
             
             try:
                 for t in range(len(waves[hw].vector)):
-                    if vcd[tb_name+"."+io][t*strobe_ticks] == "1":
+                    #print(t*strobe_ticks+starttime, vcd[tb_name+"."+io][t*strobe_ticks+starttime])
+                    if vcd[tb_name+"."+io][t*strobe_ticks+starttime] == "1":
                         waves[hw].set_bit(t,self.IO_pos[io],1)
+                print("done!")
                         
             except KeyError:
                 print("(WARN) "+tb_name+"."+io+" is NOT FOUND in VCD. Setting to default",self.IO_default[io])
-                for t in range(len(waves[hw].vector)):
-                    waves[hw].set_bit(t,self.IO_pos[io],self.IO_default[io])
+                waves[hw].set_mask_bit(self.IO_pos[io], self.IO_default[io])
+
+
+        for hw in hw_list:
+            print("Applying defaults mask for",hw,"...",end='',flush=True)
+            waves[hw].apply_mask()
+            print("done!")
             
         #Write glue waves to file.
         for glue_wave in waves.values():
@@ -264,7 +292,7 @@ class GlueConverter():
         print("Glue Converter finished!")
         print("Total of",len(waves.keys()),"file(s) written.")
         print("Timebase of input file was:",vcd_timebase_ps,"ps")
-        print("Length of input file was:",endtime*vcd_timebase_ps/1000000,"us")
+        print("Length of input file was:",(endtime-starttime)*vcd_timebase_ps/1000000,"us")
         print("Strobe was:",strobe_ps,"ps")
         print("# of timesteps was:",vector_len)
 
@@ -358,9 +386,23 @@ class GlueConverter():
         
 
     #Write a GlueWave() object to file. 
-    def write_glue(self, glue_wave, output_file_name):
+    def write_glue(self, glue_wave, output_file_name, compress=True):
+
+        #Compress into a string with "@" symbols representing duplicates.
+        if compress:
+            writestring = str(glue_wave.vector[0])
+            for i in range(1,len(glue_wave.vector)):
+                if glue_wave.vector[i] == glue_wave.vector[i-1]:
+                    writestring = writestring+"@"
+                else:
+                    writestring = writestring+","+str(glue_wave.vector[i])
+
+        else:
+            writestring = ",".join([str(x) for x in glue_wave.vector])
+
+        #Write to file
         with open(output_file_name,'w') as write_file:
-            write_file.write(",".join([str(x) for x in glue_wave.vector]))
+            write_file.write(writestring)
             write_file.write("\n")
             #Mandatory metadata
             write_file.write("//STROBE_PICOSECONDS:"+str(glue_wave.strobe_ps)+"\n")
@@ -374,8 +416,34 @@ class GlueConverter():
         with open(glue_file_name,"r") as read_file:
             lines = read_file.readlines()
 
-        #It processes the first line to create a list of integers named vector.(beren)
-        vector = [int(x) for x in lines[0].strip().split(",")]
+        #Process the first line to get the entries.
+        datastring = lines[0].strip()
+        data_entries = datastring.split(",")
+
+        expected_len = datastring.count(",")+datastring.count("@")+1
+        print("Reading glue wave, expected length =",expected_len)
+
+        
+        vector = [0]*(expected_len)
+        i = 0
+        
+        for entry in data_entries:
+            #If this is a compressed entry...
+            if "@" in entry:
+                base_entry = int(entry.replace("@",""))
+                #...first add the base entry,
+                vector[i] = base_entry
+                i = i+1
+                #...then duplicate it entry.count("@")-many times.
+                for j in range(entry.count("@")):
+                    vector[i] = base_entry
+                    i = i+1
+
+            else:
+                vector[i] = int(entry)
+                i = i+1
+        
+        #vector = [int(x) for x in lines[0].strip().split(",")]
 
         #It processes the next two lines to extract floating point numbers (beren)
         #timebase_ps = float(lines[1].strip().split(":")[-1])
