@@ -388,17 +388,53 @@ class GlueConverter():
     #Write a GlueWave() object to file. 
     def write_glue(self, glue_wave, output_file_name, compress=True):
 
+        if glue_wave.len > 10000:
+            write_progress = True
+        else:
+            write_progress = False
+
         #Compress into a string with "@" symbols representing duplicates.
         if compress:
-            writestring = str(glue_wave.vector[0])
-            for i in range(1,len(glue_wave.vector)):
+
+            if write_progress == True:
+                print("Writing Glue Wave. Progress: [",end='',flush=True)
+            
+
+            #Optimization note (@aquinn)
+            #Successive string concatenation with the + operator can potentially
+            #be O(n^2) if the compiler decides to build a temporary string for
+            #each + operation. By using a temp array instead we ensure it is
+            #O(n) because ''.join(seq) is O(n) and arr.append() is amortized O(1).
+            #
+            #In testing, I have observed that string concatenation gets slower
+            #as the process goes on (i.e. the operands get longer), which implies
+            #that there is a temporary string copy being made for each intermediate
+            #operation.
+            #
+            #Update: Confirmed this method is >100x faster for large strings.
+            temp = [str(glue_wave.vector[0])]
+            #writestring = str(glue_wave.vector[0])
+            
+            for i in range(1,glue_wave.len):
+
+                if write_progress and i % (glue_wave.len/20)==0:
+                    print("|",end="",flush=True)
+                
                 if glue_wave.vector[i] == glue_wave.vector[i-1]:
-                    writestring = writestring+"@"
+                    #writestring = writestring+"@"
+                    temp.append("@")
                 else:
-                    writestring = writestring+","+str(glue_wave.vector[i])
+                    #writestring = writestring+","+str(glue_wave.vector[i])
+                    temp.append(",")
+                    temp.append(str(glue_wave.vector[i]))
+
+            writestring = ''.join(temp)
 
         else:
             writestring = ",".join([str(x) for x in glue_wave.vector])
+
+        if write_progress:
+            print("] (writing final result to file...)",flush=True)
 
         #Write to file
         with open(output_file_name,'w') as write_file:
@@ -411,11 +447,21 @@ class GlueConverter():
             for key in glue_wave.metadata.keys():
                 write_file.write("//"+str(key)+":"+str(glue_wave.metadata[key])+"\n")
 
-    #Read a Glue file into a GlueWave() object.      
+    #Read a Glue file into a GlueWave() object.
+    #Args:
+    #   - glue_file_name = full file name of the glue file to be read.
+    #Returns:
+    #   - GlueWave(), or None on failure.
     def read_glue(self,glue_file_name):
-        with open(glue_file_name,"r") as read_file:
-            lines = read_file.readlines()
 
+        try:
+            with open(glue_file_name,"r") as read_file:
+                lines = read_file.readlines()
+                
+        except FileNotFoundError:
+            print("(ERR) Could not read Glue file at:",glue_file_name)
+            return None
+            
         #Process the first line to get the entries.
         datastring = lines[0].strip()
         data_entries = datastring.split(",")
@@ -460,6 +506,9 @@ class GlueConverter():
 
         if type(glue_file) == str:
             wave = self.read_glue(glue_file)
+            if wave == None:
+                print("(ERR) Cannot plot glue because file was not read.")
+                return
         else:
             wave = glue_file
         vector = wave.vector
@@ -585,6 +634,11 @@ class GlueConverter():
         print( "I/O             Dir.\tDC1 \tDC2 \tIn=Out?")
         for io in self.IOs:
 
+            #Only worry about those IOs
+            if not self.IO_hardware[io] == wave1.hardware_str:
+                print("(DBG) skipping",io,"because",self.IO_hardware[io],"!=",wave1.hardware_str)
+                continue
+
             direction = self.IO_dir[io]
             position = self.IO_pos[io]
             pattern1_this_io = [1 if x & (1 << position) else 0 for x in wave1.vector]
@@ -685,6 +739,10 @@ class GlueConverter():
                     glue_file = filedialog.askopenfilename()
                     print(glue_file)
                     current_glue = self.read_glue(glue_file)
+                    if current_glue == None:
+                        print("(ERR) Cannot proceed because read_glue failed.")
+                        continue
+                    
                 sig_name = input("sig_name?")
 
                 try:
@@ -702,6 +760,10 @@ class GlueConverter():
                     glue_file = filedialog.askopenfilename()
                     print(glue_file)
                     current_glue = self.read_glue(glue_file)
+                    if current_glue == None:
+                        print("(ERR) Cannot proceed because read_glue failed.")
+                        continue
+                    
                 t = int(input("t?"))
                 bit_pos = int(input("bit_pos?"))
                 value = int(input("value?"))
@@ -713,6 +775,9 @@ class GlueConverter():
                     glue_file = filedialog.askopenfilename()
                     print(glue_file)
                     current_glue = self.read_glue(glue_file)
+                    if current_glue == None:
+                        print("(ERR) Cannot proceed because read_glue failed.")
+                        continue
                 filename = input("File name?").strip()
                 self.write_glue(current_glue,filename)
                 print("Wrote to",filename)
@@ -721,6 +786,9 @@ class GlueConverter():
                 glue_file = filedialog.askopenfilename()
                 print(glue_file)
                 current_glue = self.read_glue(glue_file)
+                if current_glue == None:
+                    print("(ERR) Cannot proceed because read_glue failed.")
+                    continue
                 clock_name = input("Clock name?").strip()
                 data_name = input("Data name?").strip()
                 outfile = input("Output file name?").strip()
@@ -736,6 +804,9 @@ class GlueConverter():
                     print("Glue 2:",glue2)
                     wave1 = self.read_glue(glue1)
                     wave2 = self.read_glue(glue2)
+                    if wave1 == None or wave2 == None:
+                        print("(ERR) Cannot proceed because read_glue failed.")
+                        continue
                     
                 self.compare(wave1,wave2)
 
@@ -749,6 +820,9 @@ class GlueConverter():
                     print("Glue 2:",glue2)
                     wave1 = self.read_glue(glue1)
                     wave2 = self.read_glue(glue2)
+                    if wave1 == None or wave2 == None:
+                        print("(ERR) Cannot proceed because read_glue failed.")
+                        continue
 
                 diff_sig = input("Diff signal?").strip()
 
@@ -763,6 +837,9 @@ class GlueConverter():
                     glue_file = filedialog.askopenfilename()
                     print(glue_file)
                     current_glue = self.read_glue(glue_file)
+                    if current_glue == None:
+                        print("(ERR) Cannot proceed because read_glue failed.")
+                        continue
                 self.plot_glue(current_glue)
                 print("Done!")
 
