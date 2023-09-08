@@ -636,7 +636,7 @@ class GlueConverter():
 
             #Only worry about those IOs
             if not self.IO_hardware[io] == wave1.hardware_str:
-                print("(DBG) skipping",io,"because",self.IO_hardware[io],"!=",wave1.hardware_str)
+                #print("(DBG) skipping",io,"because",self.IO_hardware[io],"!=",wave1.hardware_str)
                 continue
 
             direction = self.IO_dir[io]

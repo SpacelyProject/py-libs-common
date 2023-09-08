@@ -13,12 +13,16 @@ class NiFpgaError(IOError):
 
 
 class NiFpga:
-    def __init__(self, logger: Logger, resource: str):
+    def __init__(self, logger: Logger, resource: str, bitfile_name=None):
         self._log = logger
         self._resource = resource
         self._session: nifpga.Session = None
         self._running: bool = False
         self._fifos: dict[str, NiFifo] = {}
+
+        #For PatternRunner's convenience, store a name for the bitfile used
+        #for this particular FPGA.
+        self._bitfile_name = bitfile_name
 
     def start(self, bitfile: str) -> None:
         if self._running:
