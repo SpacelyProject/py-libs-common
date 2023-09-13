@@ -388,6 +388,10 @@ class GlueConverter():
     #Write a GlueWave() object to file. 
     def write_glue(self, glue_wave, output_file_name, compress=True):
 
+        if glue_wave is None or glue_wave.len < 1:
+            print("(ERR) gc.write_glue: Cannot write a non-existent wave. :)")
+            return -1
+    
         if glue_wave.len > 10000:
             write_progress = True
         else:
@@ -627,6 +631,9 @@ class GlueConverter():
         self.loaded_iospec_file = True
             
     def compare(self, wave1, wave2):
+        if wave1 is None or wave2 is None:
+            print("(ERR) gc.compare: Cannot compare",wave1,"with",wave2)
+            return -1
 
         print("Wave 1 len:",wave1.len)
         print("Wave 2 len:",wave2.len)

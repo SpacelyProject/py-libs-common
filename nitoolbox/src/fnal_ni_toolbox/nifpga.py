@@ -289,6 +289,7 @@ class NiFpgaDebugger:
                 print(y)
             return y
         else:
+            #print(f"(ERR)Bad interact() operation: {choice} is neither a register nor a FIFO?!")
             raise NiFpgaError(f"{choice} is neither a register nor a FIFO?!")
 
     def _interact_with_register(self, name: str, operation: str, user_data: any) -> any:
