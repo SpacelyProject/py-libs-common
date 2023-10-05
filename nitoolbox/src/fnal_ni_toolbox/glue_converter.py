@@ -477,21 +477,28 @@ class GlueConverter():
         vector = [0]*(expected_len)
         i = 0
         
-        for entry in data_entries:
-            #If this is a compressed entry...
-            if "@" in entry:
-                base_entry = int(entry.replace("@",""))
-                #...first add the base entry,
-                vector[i] = base_entry
-                i = i+1
-                #...then duplicate it entry.count("@")-many times.
-                for j in range(entry.count("@")):
+        try:
+            for entry in data_entries:
+                #If this is a compressed entry...
+                if "@" in entry:
+                    base_entry = int(entry.replace("@",""))
+                    #...first add the base entry,
                     vector[i] = base_entry
                     i = i+1
+                    #...then duplicate it entry.count("@")-many times.
+                    for j in range(entry.count("@")):
+                        vector[i] = base_entry
+                        i = i+1
 
-            else:
-                vector[i] = int(entry)
-                i = i+1
+                else:
+                    vector[i] = int(entry)
+                    i = i+1
+        
+        except ValueError as e:
+            print(e)
+            print(f"(ERR) {glue_file_name} does not appear to be a well-formatted glue file!")
+            return None
+        
         
         #vector = [int(x) for x in lines[0].strip().split(",")]
 
@@ -684,9 +691,22 @@ class GlueConverter():
 
         self.plot_waves(signals,signal_names,wave1.strobe_ps)
 
-    # export_clocked_bitstream
+    #Get a particular bit by name.
+    def get_bitstream(self, wave, data_name):
+
+        bitstream = []
+
+        data_sig =  [1 if x & (1 << self.IO_pos[data_name]) else 0 for x in wave.vector]
+        
+        for i in range(len(wave.vector)):
+            bitstream.append(data_sig[i])
+
+        return bitstream
+
+
+    # get_clocked_bitstream
     # Converts a Glue waveform with a data signal and its corresponding clock into a bit stream!
-    def export_clocked_bitstream(self, wave, clock_name, data_name, outfile):
+    def get_clocked_bitstream(self, wave, clock_name, data_name):
 
         bitstream = []
 
@@ -697,9 +717,14 @@ class GlueConverter():
             if clock_sig[i] == 1 and clock_sig[i-1] == 0:
                 bitstream.append(data_sig[i-1])
 
+        return bitstream
+     
+
+    def export_clocked_bitstream(self, wave, clock_name, data_name, outfile):
+        bitstream = self.get_clocked_bitstream(self,wave,clock_name,data_name)
+        
         with open(outfile,"w") as write_file:
             write_file.write(",".join([str(i) for i in bitstream]))
-            
 
     #Open a mini shell that allows the user to run Glue Converter commands. 
     def gcshell(self):
