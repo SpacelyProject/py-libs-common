@@ -581,6 +581,43 @@ class GlueConverter():
         plt.xlabel("ns")
         plt.show()
 
+
+    #Prints out a table representing the currently loaded IOspec.
+    def print_iospec(self):
+        #List of all unique hardware chassises.
+        hw_list = list(set(self.IO_hardware.values()))
+        
+
+        for hw in hw_list:
+            print("HARDWARE:",hw)
+
+            this_hw_ios = [x for x in self.IOs if self.IO_hardware[x] == hw]
+            this_hw_io_pos = [self.IO_pos[x] for x in this_hw_ios]
+
+            for i in range(max(this_hw_io_pos)):
+                print(i," ",end='')
+                if i in this_hw_io_pos:
+                    for io in this_hw_ios:
+                        if self.IO_pos[io] == i:
+                            print(f"- {io:<16} DIR: ",end='')
+                            if self.IO_dir[io]=="I":
+                                print("ASIC INPUT  (1)")
+                            else:
+                                print("ASIC OUTPUT (0)")
+                else:
+                    print("UNUSED                             (0)")
+
+            this_hw_io_dir = 0
+    
+            for io in self.Input_IOs:
+                hw = self.IO_hardware[io]
+                pos = self.IO_pos[io]
+                #INPUTS to the ASIC are OUTPUTS from Glue, so set their IO dir to 1.
+                this_hw_io_dir = this_hw_io_dir | (1 << pos)
+
+            print("I/O Dir Integer for this HW:",this_hw_io_dir,"(",bin(this_hw_io_dir),")")
+    
+
     #Reads an IO spec in the format specified above, and parses
     #its information into lists and dictionaries so it can be
     #easily used.
@@ -748,6 +785,7 @@ class GlueConverter():
             if user_input == "iospec":
                 file_path = filedialog.askopenfilename()
                 self.parse_iospec_file(file_path)
+                self.print_iospec()
                 print(file_path)
 
             elif user_input == "clr":
