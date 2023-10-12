@@ -116,6 +116,10 @@ class GlueWave():
     def apply_mask(self):
         self.vector = [x | self.mask for x in self.vector]
 
+    # Returns the vector value for a specific timestamp
+    def get_vector_value(self,t):
+        return self.vector[t]
+
     def set_bit(self, t, bit_pos, value):
         if value == 1:
             self.vector[t] = self.vector[t] | (1 << bit_pos)
@@ -220,6 +224,9 @@ class GlueConverter():
     #       tb_name - Name of the top-level testbench in your VCD
     #       vcd_timebase_ps - Timebase of your VCD file in picoseconds
     def VCD2Glue(self, vcd_file_name, strobe_ps, output_file_tag, inputs_only=True, tb_name=None, vcd_timebase_ps=None):
+    
+        #HAVE NOT IMPLEMENTED MULTIPLEXED IOs FOR THIS FUNCTION YET.
+        assert self.Multiplexed_IOs == []
         
         # Use a library function to parse the input VCD
         vcd = VCDVCD(vcd_file_name, store_scopes=True)
@@ -298,6 +305,7 @@ class GlueConverter():
 
 
     #ascii2Glue - Accepts an ascii-formatted file and converts it to a glue wave.
+    #Returns -1 on error
     def ascii2Glue(self, ascii_file_name, ticks_per_bit, output_file_tag, inputs_only=True):
 
         with open(ascii_file_name, 'r') as read_file:
@@ -310,6 +318,11 @@ class GlueConverter():
         for line in ascii_lines:
             x = line.split(":")
             bitstrings[x[0].strip()] = x[1].strip()
+            
+        for signal in bitstrings.keys():
+            if signal not in self.IOs:
+                print(f"(ascii2Glue ERR) signal {signal} in the ascii file was not found in the current iospec!")
+                return -1
 
         #Vector length is determined by the length of the longest bitstring.
         bitstring_len = max([len(b) for b in bitstrings.values()])
@@ -330,18 +343,34 @@ class GlueConverter():
         else:
             IOs_to_Plot = self.IOs
         
-        for io in IOs_to_Plot:
+        ## Make sure the there are not multiple multiplexed IOs being used!
+        for muxed_io_set in self.Multiplexed_IOs:
+            io_to_use = None
+            for io in muxed_io_set:
+                if io in bitstrings.keys():
+                    if io_to_use == None:
+                        io_to_use = io
+                    else:
+                        print("(ascii2Glue ERROR) This ascii uses multiple IOs which are multiplexed to the same pin: {io} and {io_to_use}!!")
+                        return -1
+            print(f"(INFO) from the set {muxed_io_set} ascii2Glue will use {io_to_use}")
+            
+            for io in muxed_io_set:
+                if io != io_to_use and io in IOs_to_Plot:
+                    IOs_to_Plot.remove(io)
+            
+        for io in IOs_to_Plot:    
             hw = self.IO_hardware[io]
-            
-            
             
             try:
                 b = bitstrings[io]
+                
                 for t in range(bitstring_len):
                     if t < len(b):
                         if b[t] == "1":
                             for i in range(ticks_per_bit):
                                 waves[hw].set_bit(t*ticks_per_bit+i,self.IO_pos[io],1)
+
                     else:
                         #If a bitstring ends early, that value should be held for the whole period.
                         if b[t-1] == "1":
@@ -352,7 +381,11 @@ class GlueConverter():
                 print("(WARN) "+io+" is NOT FOUND in ascii file. Setting to default",self.IO_default[io])
                 for t in range(len(waves[hw].vector)):
                     waves[hw].set_bit(t,self.IO_pos[io],self.IO_default[io])
-            
+                    
+                    
+               
+        
+            #print(waves[hw].vector)    
         #Write glue waves to file.
         for glue_wave in waves.values():
             name = output_file_tag+"_"+glue_wave.hardware[2]+".glue"
@@ -631,6 +664,7 @@ class GlueConverter():
         self.IOs = []
         self.Input_IOs = []
         self.Output_IOs = []
+        self.Multiplexed_IOs = []
         self.IO_dir = {}
         self.IO_pos = {}
         self.IO_default = {}
@@ -672,6 +706,27 @@ class GlueConverter():
                     print("IOSPEC PARSE ERR: Line \""+line+"\" has no hardware associated with it!")
                     return -1
                     
+                    
+        #Catch any multiplexed IOs early:
+        
+        for io1 in self.IOs:
+            this_io_dup_list = [io1]
+            
+            #Check if we've already identified all the IOs mux'd with this one.
+            if any(io1 in x for x in self.Multiplexed_IOs):
+                continue
+            
+            for io2 in self.IOs:
+                if io1 != io2 and self.IO_pos[io1] == self.IO_pos[io2] and self.IO_hardware[io1] == self.IO_hardware[io2]:
+                    this_io_dup_list.append(io2)
+          
+            if len(this_io_dup_list) > 1:
+                self.Multiplexed_IOs.append(this_io_dup_list)
+        
+        
+        if len(self.Multiplexed_IOs) > 0:
+            print("(WARNING) The following sets of IOs are multiplexed to the same pin. Ensure this is intentional:",self.Multiplexed_IOs)
+        
         self.loaded_iospec_file = True
             
     def compare(self, wave1, wave2):
