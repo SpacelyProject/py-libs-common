@@ -107,6 +107,15 @@ class TektronixOscilloscope():
         #Each data point will be represented by 1 byte, -127 thru 127.
         self.write("WFMOutpre:BYT_Nr 1")
         
+        #Get number of points equal to the record length:
+        rl = int(self.query("HORIZONTAL:MODE:RECORDLENGTH?"))
+        print(f"(DBG) RL = {rl}")
+        self.write("DATA:START 1")
+        self.write(f"DATA:STOP {rl}")
+        
+        #print(self.query("DATA:STOP?"))
+        #print(self.query("WFMOUTPRE:NR_PT?"))
+        
         #Specify the number of bytes per data point
         #(Not necessary in ASCII format)
         
