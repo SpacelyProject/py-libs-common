@@ -373,7 +373,7 @@ class GlueConverter():
 
                     else:
                         #If a bitstring ends early, that value should be held for the whole period.
-                        if b[t-1] == "1":
+                        if b[len(b)-1] == "1":
                             for i in range(ticks_per_bit):
                                 waves[hw].set_bit(t*ticks_per_bit+i,self.IO_pos[io],1)
                         
