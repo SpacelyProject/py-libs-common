@@ -41,7 +41,7 @@ class TektronixOscilloscope():
 
         if visa_resource not in self.resources:
             self.log.error(f"Could not find resource {visa_resource}")
-            return -1
+            return
 
         self.inst = self.rm.open_resource(visa_resource)
 
@@ -49,7 +49,7 @@ class TektronixOscilloscope():
 
         if "TEKTRONIX" not in self.id:
             self.log.error("Could not communicate with TektronixOscilloscope")
-            return -1
+            return
         else:
             self.log.notice("TektronixOscilloscope set up correctly!")
 

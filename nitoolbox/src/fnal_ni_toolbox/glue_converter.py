@@ -62,7 +62,8 @@ clr       --\tClear currently loaded files.
 forcesignal--\tForce a particular bit high/low throughout the glue wave.
 editbit    --\tEdit a single bit in the current Glue wave at timestep t
 writeglue --\tWrite the current Glue wave to file.
-bits      --\tExport a clocked bitstream from a Glue wave.
+bits      --\tExport a bitstream from a Glue wave.
+clockbits --\tExport a clocked bitstream from a Glue wave.
 
 vcd2input/vcd2golden
           --\tConvert a VCD to an input Glue file (inputs only) or a golden Glue file (inputs+outputs)
@@ -787,7 +788,7 @@ class GlueConverter():
     def get_bitstream(self, wave, data_name):
 
         bitstream = []
-
+        
         data_sig =  [1 if x & (1 << self.IO_pos[data_name]) else 0 for x in wave.vector]
         
         for i in range(len(wave.vector)):
@@ -795,6 +796,11 @@ class GlueConverter():
 
         return bitstream
 
+    def export_bitstream(self, wave, data_name, outfile):
+        bitstream = self.get_bitstream(wave,data_name)
+        
+        with open(outfile,"w") as write_file:
+            write_file.write(",".join([str(i) for i in bitstream]))
 
     # get_clocked_bitstream
     # Converts a Glue waveform with a data signal and its corresponding clock into a bit stream!
@@ -813,7 +819,7 @@ class GlueConverter():
      
 
     def export_clocked_bitstream(self, wave, clock_name, data_name, outfile):
-        bitstream = self.get_clocked_bitstream(self,wave,clock_name,data_name)
+        bitstream = self.get_clocked_bitstream(wave,clock_name,data_name)
         
         with open(outfile,"w") as write_file:
             write_file.write(",".join([str(i) for i in bitstream]))
@@ -907,7 +913,7 @@ class GlueConverter():
                 self.write_glue(current_glue,filename)
                 print("Wrote to",filename)
 
-            elif user_input == "bits":
+            elif user_input == "clockbits":
                 glue_file = filedialog.askopenfilename()
                 print(glue_file)
                 current_glue = self.read_glue(glue_file)
@@ -918,6 +924,19 @@ class GlueConverter():
                 data_name = input("Data name?").strip()
                 outfile = input("Output file name?").strip()
                 self.export_clocked_bitstream(current_glue, clock_name, data_name, outfile)
+                
+                
+                
+            elif user_input == "bits":
+                glue_file = filedialog.askopenfilename()
+                print(glue_file)
+                current_glue = self.read_glue(glue_file)
+                if current_glue == None:
+                    print("(ERR) Cannot proceed because read_glue failed.")
+                    continue
+                data_name = input("Data name?").strip()
+                outfile = input("Output file name?").strip()
+                self.export_bitstream(current_glue, data_name, outfile)
 
             elif user_input == "compare":
                 if wave1 == None:
