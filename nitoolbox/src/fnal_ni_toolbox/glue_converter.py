@@ -397,6 +397,8 @@ class GlueConverter():
         print("Glue Converter finished!")
         print("Total of",len(waves.keys()),"file(s) written.")
         print("# of timesteps was:",vector_len)
+        
+        return name
 
     #NOT COMPLETE
     def data2Glue(self, data_file_name, clock_pin_name, data_pin_name, output_file_tag, glue_ticks_per_bit, inputs_only=True):

@@ -248,7 +248,11 @@ class NiFpgaDebugger:
     def configure(self, config_dict):
         #Set all registers to their default values.
         for cfg in config_dict.keys():
-            self.interact("w", cfg, config_dict[cfg])
+        
+            if self._fpga.has_fifo(cfg) or self._fpga.has_register(cfg):
+                self.interact("w", cfg, config_dict[cfg])
+            else:
+                self._log.debug(f"Could not configure {cfg} for this fpga...")
 
     # PARAMS:
     #       user_data - READ: how many elems to read, WRITE: data to write
