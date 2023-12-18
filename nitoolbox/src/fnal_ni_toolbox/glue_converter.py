@@ -507,7 +507,7 @@ class GlueConverter():
         data_entries = datastring.split(",")
 
         expected_len = datastring.count(",")+datastring.count("@")+1
-        print("Reading glue wave, expected length =",expected_len)
+        #print("Reading glue wave, expected length =",expected_len)
 
         
         vector = [0]*(expected_len)
@@ -995,15 +995,19 @@ class GlueConverter():
                 
                 #vcd_timebase_ps = float(input("VCD timebase (ps)?"))
                 #tb_name = input("tb name?").strip()
+                tb_name = input("Tb name? (Hit enter to auto identify)").strip()
                 strobe_ps = float(input("Strobe (ps)?"))
                 output_file_name = input("Out file tag?").strip()
+                
+                if len(tb_name) == 0:
+                    tb_name = None
 
                 if "golden" in user_input:
                     inputs_only = False
                 else:
                     inputs_only = True
                 
-                self.VCD2Glue(current_vcd, strobe_ps, output_file_name, inputs_only)
+                self.VCD2Glue(current_vcd, strobe_ps, output_file_name, inputs_only, tb_name=tb_name)
                 print("Done!")
 
             elif user_input == "ascii2input" or user_input == "ascii2golden":
