@@ -81,7 +81,20 @@ class AgilentAWG(PrologixDevice):
              instrument's queue.
            * To clear the error queue you need to call clear_errors().
         """
-        error_str = super().query("SYSTem:ERRor?", True) # this uses super() to avoid loop
+        error_str = ""
+        
+        for i in range(10): #Try up to 10 times.
+            error_str = super().query("SYSTem:ERRor?", True) # this uses super() to avoid loop
+            if error_str == "":
+                self.log.warning("When queried for errors, AWG returned null string, trying again.")
+                time.sleep(0.1)
+            else:
+                break
+                
+        if i > 9:
+            self.log.critical("Communication failure with AWG, returning -1.")
+            return -1
+        
         error = AgilentError.from_error_string(error_str)
 
         return error if error.is_error() else None
@@ -142,7 +155,6 @@ class AgilentAWG(PrologixDevice):
            this method will report an error even if the command executed
            last didn't fail.
         """
-
         output = self.send_line(cmd_txt)
         error = self.read_first_error()
         if error is None:

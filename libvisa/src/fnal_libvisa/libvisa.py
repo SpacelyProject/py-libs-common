@@ -59,9 +59,17 @@ class Oscilloscope():
 
         if visa_resource not in self.resources:   
             self.log.error(f"Could not find resource {visa_resource}")
+            self.log.debug(f"Resources:{self.resources}")
+            return None
 
         self.inst = self.rm.open_resource(visa_resource)
+        
+        #Default timeout of 2 seconds for communicating.
+        self.inst.timeout = 2000
 
+        #Write some gratuitous newline characters to make sure we get back to a good state?
+        self.write("\n")
+        
         self.id = self.get_id()
 
         if "TEKTRONIX" in self.id:
@@ -158,7 +166,14 @@ class Oscilloscope():
         
         #Waveform data is returned as a float list which corresponds to the Y-axis
         #The first 10 ASCII characters form a header which can be discarded.
-        raw_wave = [float(x) for x in self.query(":WAVEFORM:DATA?")[10:].split(",")]
+        try:
+            query_data = self.query(":WAVEFORM:DATA?")
+        except Exception as e:
+            print(e)
+            self.log.error("Failed to read data from Scope! Trying again...")
+            query_data = self.query(":WAVEFORM:DATA?")
+        
+        raw_wave = [float(x) for x in query_data[10:].split(",")]
         
         return raw_wave
 
