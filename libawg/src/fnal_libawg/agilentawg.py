@@ -38,7 +38,8 @@ class AgilentError(RuntimeError):
 
 
 class AgilentAWG(PrologixDevice):
-    def __init__(self, logger, ip_address, device_addr, default_data_timeout = 2):
+    #Longer timeout to ensure no failure on reading errors.
+    def __init__(self, logger, ip_address, device_addr, default_data_timeout = 5):
         super().__init__(logger, ip_address, device_addr, default_data_timeout)
 
         self.limit = None
@@ -156,6 +157,7 @@ class AgilentAWG(PrologixDevice):
            last didn't fail.
         """
         output = self.send_line(cmd_txt)
+        self.log.debug(f"AWG cmd:{cmd_txt}")
         error = self.read_first_error()
         if error is None:
             return output
