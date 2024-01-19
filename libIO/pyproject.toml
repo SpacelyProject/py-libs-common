@@ -1,6 +1,6 @@
 [project]
-name = "fnal_libprologix"
-description = "Package to serve as an abstraction layer for Prologix controllers"
+name = "fnal_libIO"
+description = "Package to serve as an abstraction layer communication interfaces (VISA, prologix...)"
 version = "0.1.1"
 
 requires-python = ">=3.10"
@@ -21,12 +21,12 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 
-[project.optional-dependencies]
-logging = ["fnal_log_wizard"]
+#[project.optional-dependencies]
+#logging = ["fnal_log_wizard"]
 
-[project.urls]
-"Homepage" = "https://github.com/Fermilab-Microelectronics/py-libs-common/libprologix"
-"Bug Tracker" = "https://github.com/Fermilab-Microelectronics/py-libs-common/issues"
+#[project.urls]
+#"Homepage" = "https://github.com/Fermilab-Microelectronics/py-libs-common/libIO"
+#"Bug Tracker" = "https://github.com/Fermilab-Microelectronics/py-libs-common/issues"
 
 [build-system]
 requires = ["hatchling"]

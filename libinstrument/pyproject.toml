@@ -1,16 +1,17 @@
 [project]
-name = "fnal_libawg"
-description = "Package to serve as an abstraction layer for Arbitrary Waveform Generators"
-version = "0.1.1"
+name = "fnal_libinstrument"
+description = "Package containing driver libraries for non-NI instruments."
+version = "0.2"
 
 requires-python = ">=3.10"
 dependencies = [
-    "fnal_libprologix @ git+https://github.com/Fermilab-Microelectronics/py-libs-common#subdirectory=libprologix",
+    "fnal_libIO @ git+https://github.com/Fermilab-Microelectronics/py-libs-common#subdirectory=libIO",
     "fnal_log_wizard @ git+https://github.com/Fermilab-Microelectronics/py-libs-common#subdirectory=liblogwizard"
 ]
 
 authors = [
     { name="Gregory Zdanowski-House", email="gzdano2@uic.edu" },
+	{ name="Adam Quinn", email="aquinn@fnal.gov" },
 ]
 readme = "README.md"
 classifiers = [
@@ -26,7 +27,7 @@ classifiers = [
 logging = ["fnal_log_wizard"]
 
 [project.urls]
-"Homepage" = "https://github.com/Fermilab-Microelectronics/py-libs-common/libawg"
+"Homepage" = "https://github.com/Fermilab-Microelectronics/py-libs-common/fnal_libinstrument"
 "Bug Tracker" = "https://github.com/Fermilab-Microelectronics/py-libs-common/issues"
 
 [build-system]

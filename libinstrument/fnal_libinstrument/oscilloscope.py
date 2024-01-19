@@ -3,32 +3,7 @@ import matplotlib.pyplot as plt
 import time
 
 
-#Run an interactive shell.
-def VISA_shell():
-    rm = pyvisa.ResourceManager()
-    resources = rm.list_resources()
 
-    print("Available resources:")
-    for i in range(len(resources)):
-        print(f"{i}. {resources[i]}")
-
-    resource_idx = int(input("Which one should we connect to?"))
-
-
-    print(f"Attempting to configure {resources[resource_idx]} as an oscilloscope...")
-    scope = Oscilloscope(None,resources[resource_idx])
-
-    while True:
-        user_input = input("cmd>")
-
-        if user_input == "exit":
-            break
-        elif user_input == "curve":
-            print(scope.get_wave())
-        elif user_input == "onscreen":
-            print(scope.onscreen())
-        else:
-            print(scope.query(user_input))
 
 
 #Provide a backup for basic logging 
@@ -44,8 +19,11 @@ class basic_logger():
     
 
 class Oscilloscope():
-
-    def __init__(self, logger, visa_resource):
+    
+    #Arguments:
+    #  logger - class that implements debug(), notice(), and error()
+    #  io     - Spacely Interface, i.e. VISA or Prologix
+    def __init__(self, logger, io):
         
         if logger is None:
             self.log = basic_logger()
@@ -53,19 +31,10 @@ class Oscilloscope():
             self.log = logger
         
         
-        self.rm = pyvisa.ResourceManager()
-        self.resources = self.rm.list_resources()
-        self.preamble = None
-
-        if visa_resource not in self.resources:   
-            self.log.error(f"Could not find resource {visa_resource}")
-            self.log.debug(f"Resources:{self.resources}")
-            return None
-
-        self.inst = self.rm.open_resource(visa_resource)
+        #VISA or Prologix Interface
+        self.io = io
         
-        #Default timeout of 2 seconds for communicating.
-        self.inst.timeout = 2000
+        self.preamble = None
 
         #Write some gratuitous newline characters to make sure we get back to a good state?
         self.write("\n")
@@ -133,10 +102,10 @@ class Oscilloscope():
         return self.query("*IDN?")
 
     def query(self, query_text):
-        return self.inst.query(query_text)
+        return self.io.query(query_text)
 
     def write(self, write_text):
-        return self.inst.write(write_text)
+        return self.io.write(write_text)
 
     
     def get_wave(self,chan_num=1, convert_to_volts=True):
@@ -266,5 +235,4 @@ class Oscilloscope():
         plt.show()
         
 
-#VISA_shell()
         

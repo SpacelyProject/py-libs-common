@@ -37,18 +37,23 @@ class AgilentError(RuntimeError):
         return cls(groups[1], int(groups[0]))
 
 
-class AgilentAWG(PrologixDevice):
-    #Longer timeout to ensure no failure on reading errors.
-    def __init__(self, logger, ip_address, device_addr, default_data_timeout = 5):
-        super().__init__(logger, ip_address, device_addr, default_data_timeout)
+class AgilentAWG():
+    
+    
+    def __init__(self, logger, io):
+        #super().__init__(logger, ip_address, device_addr, default_data_timeout)
 
         self.limit = None
         self.log = logger
+        self.io = io
+
+        self.connect()
 
     def connect(self, max_attempts = 10, tcp_timeout = 0.5) -> bool:
         """Connects to Agilent AWG"""
-        connected = super().connect(max_attempts, tcp_timeout)
+        connected = self.io.is_connected()
         if not connected:
+            self.log.error("Attempted to connect to Agilent AWG() while io is not connected.")
             return False
 
         self.display_text("Configuring...")
@@ -85,7 +90,7 @@ class AgilentAWG(PrologixDevice):
         error_str = ""
         
         for i in range(10): #Try up to 10 times.
-            error_str = super().query("SYSTem:ERRor?", True) # this uses super() to avoid loop
+            error_str = self.io.query("SYSTem:ERRor?", True) # this directly calls io.query to avoid loop
             if error_str == "":
                 self.log.warning("When queried for errors, AWG returned null string, trying again.")
                 time.sleep(0.1)
@@ -118,7 +123,7 @@ class AgilentAWG(PrologixDevice):
            This method can safely be used blindly, i.e. you can call it even
            if there may not be any errors in the queue.
         """
-        self.send_line("*CLS")
+        self.io.write("*CLS")
 
     def query_awg(self, cmd_txt: str, trim: bool = False) -> str:
         """Queries the instrument and handles erorrs
@@ -133,7 +138,7 @@ class AgilentAWG(PrologixDevice):
            this method will report an error even if the command executed
            last didn't fail.
         """
-        output = self.query(cmd_txt, trim)
+        output = self.io.query(cmd_txt, trim)
         error = self.read_first_error()
         if error is None:
             return output
@@ -143,7 +148,7 @@ class AgilentAWG(PrologixDevice):
                        f"{error.remote_message} - raising error")
         raise error
 
-    def send_line_awg(self, cmd_txt: str) -> str:
+    def send_line_awg(self, cmd_txt: str, check_for_errors=False) -> str:
         """Sends a line command to the instrument and handles errors
 
            This method works like send_line() but asks the instrument
@@ -156,16 +161,20 @@ class AgilentAWG(PrologixDevice):
            this method will report an error even if the command executed
            last didn't fail.
         """
-        output = self.send_line(cmd_txt)
+        output = self.io.write(cmd_txt)
         self.log.debug(f"AWG cmd:{cmd_txt}")
-        error = self.read_first_error()
-        if error is None:
-            return output
+        
+        if check_for_errors:
+            error = self.read_first_error()
+            if error is None:
+                return output
 
-        error.remote_cmd = cmd_txt
-        self.log.debug(f"Line command \"{cmd_txt}\" generated remote error #{error.remote_code}: "
-                       f"{error.remote_message} - raising error")
-        raise error
+            error.remote_cmd = cmd_txt
+            self.log.debug(f"Line command \"{cmd_txt}\" generated remote error #{error.remote_code}: "
+                           f"{error.remote_message} - raising error")
+            raise error
+        else:
+            return output
 
     def set_limit(self, voltage_volts: float) -> None:
         self.limit = voltage_volts
@@ -189,7 +198,7 @@ class AgilentAWG(PrologixDevice):
             self.log.critical("Refusing to execute AWG \"{cmd}\" - {voltage_volts}V is over limit of {self.limit}V")
             return False
 
-        self.send_line(cmd)
+        self.io.write(cmd)
         time.sleep(0.1)
         return True
 

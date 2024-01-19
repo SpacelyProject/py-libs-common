@@ -8,7 +8,7 @@ import time
 #Class for devices which are controlled using a Prologix Ethernet-to-GPIB
 # Converter/Bridge
 # Docs: https://prologix.biz/downloads/PrologixGpibEthernetManual.pdf
-class PrologixDevice():
+class PrologixInterface(GenericInterface):
     DEF_BUFFER_SIZE: Final = 4096
 
     MODE_DEVICE: Final = 0
@@ -22,6 +22,8 @@ class PrologixDevice():
         self.data_eot_char = None # see set_eot_signaling()
 
         self.sock = None
+
+        self.connect()
 
     def connect(self, max_attempts = 10, tcp_timeout = 0.5) -> bool:
         if not self.__open_bridge_connection():
@@ -272,3 +274,7 @@ class PrologixDevice():
         #self.set_read_after_write(enabled=False)
 
         return recv.strip() if trim else recv
+
+
+    def write(self, write_text):
+        self.send_line(write_text)
