@@ -1,5 +1,6 @@
 import pyvisa
 
+from fnal_libIO import *
 
 #Run an interactive shell.
 def VISA_shell():
@@ -33,12 +34,13 @@ def VISA_shell():
 class VISAInterface(GenericInterface):
 
 
-    def __init__(self, visa_resource):
+    def __init__(self, logger, visa_resource):
 
         self.rm = pyvisa.ResourceManager()
         self.resources = self.rm.list_resources()
-
-
+        
+        self.log = logger
+        
         if visa_resource not in self.resources:   
             self.log.error(f"Could not find resource {visa_resource}")
             self.log.debug(f"Resources:{self.resources}")

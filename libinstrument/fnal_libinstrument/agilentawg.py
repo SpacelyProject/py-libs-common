@@ -90,7 +90,7 @@ class AgilentAWG():
         error_str = ""
         
         for i in range(10): #Try up to 10 times.
-            error_str = self.io.query("SYSTem:ERRor?", True) # this directly calls io.query to avoid loop
+            error_str = self.io.query("SYSTem:ERRor?").strip() # this directly calls io.query to avoid loop
             if error_str == "":
                 self.log.warning("When queried for errors, AWG returned null string, trying again.")
                 time.sleep(0.1)
@@ -138,7 +138,9 @@ class AgilentAWG():
            this method will report an error even if the command executed
            last didn't fail.
         """
-        output = self.io.query(cmd_txt, trim)
+        output = self.io.query(cmd_txt)
+        if trim:
+            output = output.strip()
         error = self.read_first_error()
         if error is None:
             return output
@@ -220,3 +222,77 @@ class AgilentAWG():
         self.send_line_awg("*RST")
         self.log.block_res(True)
         time.sleep(1)
+        
+        
+    def query(self, query_text):
+        return self.io.query(query_text)
+
+    def write(self, write_text):
+        return self.io.write(write_text)
+        
+        
+        
+        
+    def config_AWG_as_DC(self, val_mV: float) -> None:
+        #if USE_ARDUINO and EMULATE_ASIC:
+        #   emucomp = str(val_mV*0.001)
+        #    sg.log.debug(f"EMULATE_ASCI compinp={emucomp}")
+        #    command_ng(sg.log, sg.port,"compinp:"+str(val_mV*0.001))
+        #else:
+        
+        awgdc = str(round(val_mV/1000,4))
+        self.send_line_awg("FUNC DC")
+        self.set_offset(val_mV)
+        self.set_output(True)
+
+    def set_Vin_mV(self, val_mV: float) -> None:
+        #if USE_ARDUINO and EMULATE_ASIC:
+        #    command_ng(sg.log, sg.port,"compinp:"+str(val_mV*0.001))
+        #else:
+            
+        self.set_offset(val_mV)
+        self.log.notice(f"Set AWG DC to: {val_mV} mV")
+
+
+    def set_pulse_mag(self, val_mV: float) -> None:
+        pulse = round(val_mV / 1000,6)
+        try:
+            self.send_line_awg("VOLT "+str(pulse))
+            self.log.notice(f"Set pulse mag to: {val_mV} mV")
+        except fnal_libawg.agilentawg.AgilentError as e:
+            print(e)
+            self.log.critical(f"Failed to set pulse magnitude to  {val_mV} mV")
+
+
+    def config_AWG_as_Pulse(self, pulse_mag_mV, pulse_width_us=0.28, pulse_period_us=9,):
+        self.set_output(False)
+        self.send_line_awg("FUNC PULS", check_for_errors=False)
+
+        #Pulse will be from (2.5 - pulse) to 2.5
+        pulse = round(pulse_mag_mV / 1000,6)
+        offset = round(2.5 - pulse_mag_mV/2000,6)
+        
+        w = round(pulse_width_us*1e-6,10)
+        
+        pd = round(pulse_period_us*1e-6,10)
+        
+        self.send_line_awg("PULSE:WIDTH 50e-9") #Start out with pw of just 50 ns (very short)
+        self.send_line_awg("PULSE:PERIOD "+str(pd)) #Update period first and then pulsewidth to avoid errors. 
+        self.send_line_awg("PULSE:WIDTH "+str(w)) 
+        
+        self.send_line_awg("VOLT:OFFS "+str(offset))
+        self.send_line_awg("VOLT "+str(pulse))
+
+        #Bursts will be triggered by Trig In (w/ a positive slope)
+        #Note: Trig In will be connected to PreSamp
+       
+        self.send_line_awg("BURS:MODE TRIG")
+        self.send_line_awg("TRIG:SOUR EXT")
+        self.send_line_awg("TRIG:SLOP POS")
+        #Each Trig In will result in 1 burst
+        self.send_line_awg("BURS:NCYC 1")
+
+        #Enable bursts
+        self.send_line_awg("BURS:STAT ON")
+
+        self.set_output(True)

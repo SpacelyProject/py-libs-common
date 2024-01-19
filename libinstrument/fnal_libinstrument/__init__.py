@@ -3,11 +3,13 @@
 
 from .agilentawg import AgilentAWG
 from .oscilloscope import Oscilloscope
+from .supply import Supply
 
 # List all symbols that should be externally-importable symbols here
 # You shouldn't export things that are internal to only this module and only used by the library and not someone using
 #  this library.
 __all__ = [
-    'AgilentAWG'
-    'Oscilloscope'
+    'AgilentAWG',
+    'Oscilloscope',
+    'Supply'
 ]
