@@ -1,4 +1,4 @@
-
+import time
 
 # Supply
 
@@ -13,6 +13,8 @@ class Supply():
 
         self.id = self.get_id()
 
+        #Defaults 
+        self.voltage_limits = [0,5]
         
         self.valid_channels = ["P6V","P25V","N25V"]
 
@@ -26,6 +28,12 @@ class Supply():
     def write(self, write_text):
         return self.io.write(write_text)
 
+    
+    #Set voltage limits in software that will be respected by this command.
+    def set_voltage_limits(limit_tuple):
+        assert(len(limit_tuple)==2)
+        self.voltage_limits = limit_tuple
+    
     def get_voltage(self, channel):
 
         if self.channel_lint_check(channel) == -1:
@@ -40,6 +48,11 @@ class Supply():
 
     def set_voltage(self, channel, voltage, current_limit=None):
         if self.channel_lint_check(channel) == -1:
+            self.log.error(f"Attempted to set voltage on non-existent channel {channel} of instr {self.id}")
+            return -1
+        
+        if voltage > self.voltage_limits[1] or voltage < self.voltage_limits[0]:
+            self.log.error(f"Attempted to set voltage = {voltage} on instr {self.id}. Voltage limits are {self.voltage_limits[0]} V to {self.voltage_limits[1]} V. To change this, use instr.set_voltage_limits([min,max])")
             return -1
         
         if current_limit == None:
@@ -60,13 +73,19 @@ class Supply():
         if self.channel_lint_check(channel) == -1:
             return None
         else:
-            return float(self.io.query(f"MEAS:VOLT? {channel}"))
+            self.io.write(f"INST:SELECT {channel}")
+            response = self.io.query(f"MEAS:VOLT?").replace("@","").strip()
+            time.sleep(0.1)
+            return float(response)
 
     def get_current(self, channel):
         if self.channel_lint_check(channel) == -1:
             return None
         else:
-            return float(self.io.query(f"MEAS:CURR? {channel}"))
+            self.io.write(f"INST:SELECT {channel}")
+            response = self.io.query(f"MEAS:CURR?").replace("@","").strip()
+            time.sleep(0.1)
+            return float(response)
 
     #Returns channel settings as (voltage, current)
     def _get_channel_settings(self,channel):

@@ -2,6 +2,17 @@ import pyvisa
 
 from fnal_libIO import *
 
+
+
+#Provide a backup for basic logging 
+class basic_logger():
+    def debug(self,x):
+        print("DEBUG: "+x)
+    def notice(self,x):
+        print("NOTICE: "+x)
+    def error(self,x):
+        print("ERROR: "+x)
+
 #Run an interactive shell.
 def VISA_shell():
     rm = pyvisa.ResourceManager()
@@ -14,18 +25,14 @@ def VISA_shell():
     resource_idx = int(input("Which one should we connect to?"))
 
 
-    print(f"Attempting to configure {resources[resource_idx]} as an oscilloscope...")
-    scope = Oscilloscope(None,resources[resource_idx])
+    print(f"Attempting to a VISA Interface for {resources[resource_idx]}...")
+    scope = VISAInterface(basic_logger(),resources[resource_idx])
 
     while True:
         user_input = input("cmd>")
 
         if user_input == "exit":
             break
-        elif user_input == "curve":
-            print(scope.get_wave())
-        elif user_input == "onscreen":
-            print(scope.onscreen())
         else:
             print(scope.query(user_input))
 

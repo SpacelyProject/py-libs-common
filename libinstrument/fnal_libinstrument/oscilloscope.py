@@ -6,14 +6,7 @@ import time
 
 
 
-#Provide a backup for basic logging 
-class basic_logger():
-    def debug(self,x):
-        print("DEBUG: "+x)
-    def notice(self,x):
-        print("NOTICE: "+x)
-    def error(self,x):
-        print("ERROR: "+x)
+
     
     
     
