@@ -29,6 +29,9 @@ class Oscilloscope():
         
         self.preamble = None
 
+        self.write(":STOP")
+        self.reset()
+
         #Write some gratuitous newline characters to make sure we get back to a good state?
         self.write("\n")
         
@@ -48,7 +51,7 @@ class Oscilloscope():
             
 
     #Convert a wave (represented by an integer list) from display units to Volts.
-    def wave_display_units_to_Volts(self,wave):
+    def wave_display_units_to_Volts(self,chan_num,wave):
     
         if "TEKTRONIX" in self.flavor:
             if self.preamble is None:
@@ -58,7 +61,7 @@ class Oscilloscope():
             #time.sleep(1)
             #offset = float(self.query(":CHANNEL1:OFFSET?"))
             #time.sleep(1)
-            scale  = float(self.query(":CHANNEL1:SCALE?"))
+            scale  = float(self.query(f":CHANNEL{chan_num}:SCALE?"))
             #time.sleep(1)
             return [(x)*scale for x in wave]
 
@@ -94,6 +97,9 @@ class Oscilloscope():
         #*IDN? is a common command that should work across all models.
         return self.query("*IDN?")
 
+    def reset(self):
+        return self.write("*RST")
+
     def query(self, query_text):
         return self.io.query(query_text)
 
@@ -101,16 +107,34 @@ class Oscilloscope():
         return self.io.write(write_text)
 
     
+    def set_scale(self,scale_V,chan_num=None):
+        if chan_num == None:
+            for i in [1,2,3,4]:
+                self.write(f":CHAN{i}:SCALE {scale_V}")
+        return self.write(f":CHAN{chan_num}:SCALE {scale_V}")
+        
+    def set_timebase(self,timebase_s):
+        return self.write(f":TIMEBASE:SCALE {timebase_s}")
+        
+    def set_offset(self,offset_V,chan_num=None):
+        if chan_num == None:
+            for i in [1,2,3,4]:
+                self.write(f":CHAN{i}:OFFSET {offset_V}")
+        return self.write(f":CHAN{chan_num}:OFFSET {offset_V}")
+    
     def get_wave(self,chan_num=1, convert_to_volts=True):
         if self.flavor == "TEKTRONIX":
             raw_wave = self._Tektronix_get_wave(chan_num)
+            if convert_to_volts:
+                return self.wave_display_units_to_Volts(chan_num,raw_wave)
+            else:
+                return raw_wave  
         elif self.flavor == "AGILENT MSO7000":
             raw_wave = self._Agilent_get_wave(chan_num)
+            #Agilent automatically converts to Volts
+            return raw_wave
             
-        if convert_to_volts:
-            return self.wave_display_units_to_Volts(raw_wave)
-        else:
-            return raw_wave    
+          
 
         
     def _Agilent_get_wave(self, chan_num=1):

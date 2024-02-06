@@ -58,6 +58,10 @@ class VISAInterface(GenericInterface):
         #Default timeout of 2 seconds for communicating.
         self.inst.timeout = 2000
 
+    
+    def set_timeout(self,timeout_ms):
+        self.inst.timeout = timeout_ms
+    
     #VISA interface is automatically connected on initialization.
     def is_connected(self):
         return True
