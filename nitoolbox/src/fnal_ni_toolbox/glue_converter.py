@@ -211,8 +211,8 @@ class GlueConverter():
     def __init__(self, iospec_file=None):
         self.loaded_iospec_file = False
         if iospec_file is not None:
-            self.parse_iospec_file(iospec_file)
-                
+            parse_result = self.parse_iospec_file(iospec_file)
+
 
     # VCD2Glue - Parses a VCD file into a glue file.
     # PARAMS:
@@ -721,19 +721,27 @@ class GlueConverter():
                         self.Input_IOs.append(sig_name)
                     else:
                         self.Output_IOs.append(sig_name)
+                    
+                    try:
+                        self.IO_pos[sig_name] = int(line_tokens[2]) #{position}
+                    except ValueError:
+                        raise Exception(f"IOSPEC PARSE ERR: On line '{line.strip()}', '{line_tokens[2].strip()}' should be an integer.")
                         
-                    self.IO_pos[sig_name] = int(line_tokens[2]) #{position}
 
                     self.IO_hardware[sig_name] = current_hw #{hardware}
 
                     #Support {optional default value}
                     if len(line_tokens) > 3:
-                        self.IO_default[sig_name] = int(line_tokens[3])
+                        try:
+                            self.IO_default[sig_name] = int(line_tokens[3])
+                        except ValueError:
+                            raise Exception(f"IOSPEC PARSE ERR: On line '{line.strip()}', '{line_tokens[3].strip()}' should be an integer.")
+                            
                     else:
                         self.IO_default[sig_name] = 0
                 else:
-                    print("IOSPEC PARSE ERR: Line \""+line+"\" has no hardware associated with it!")
-                    return -1
+                    raise Exception("IOSPEC PARSE ERR: Line \""+line+"\" has no hardware associated with it!")
+                    
                     
                     
         #Catch any multiplexed IOs early:
