@@ -243,20 +243,39 @@ class GlueConverter():
         if tb_name == None:
             tb_name = list(vcd.hierarchy.keys())[0]
 
-        
-        #The length of the output vector is endtime/STROBE
-        strobe_ticks = int(strobe_ps/vcd_timebase_ps)
-        vector_len = int((endtime-starttime)/strobe_ticks)
+            
+        vcd_length_in_time_units = (endtime-starttime)
+        vcd_length_in_seconds = vcd_length_in_time_units*vcd_timebase_ps/1e12
 
-        print("Generating input w/ vector length:",vector_len,"...")
+
+        #The length of the output vector is endtime/STROBE
+        strobe_to_vcd_timebase_ratio = strobe_ps/vcd_timebase_ps
+        vector_length_in_ticks = int(vcd_length_in_time_units / strobe_to_vcd_timebase_ratio)
+        vector_length_in_seconds = vector_length_in_ticks * 25e-9
+        
+
+        ## TIMEBASE CONVERSION 
+        print("----- <<< VCD Timebase Conversion >>> -----")
+        print(f"Your VCD file uses time units of {vcd_timebase_ps} ps.")
+        print(f"The length of your VCD is {vcd_length_in_time_units} time units or {vcd_length_in_seconds} seconds.")
+        print(f"Default FPGA clock is 40 MHz (1 / 25ns).")
+        print(f"You chose strobe_ps={strobe_ps} so 1 fpga tick (25 ns) = {strobe_ps} ps of sim time.")
+        print(f"Your resulting FPGA pattern will be {vector_length_in_ticks} ticks or {vector_length_in_seconds} seconds.")
+        print(f"(FPGA waveform is {strobe_ps / 25000}x the speed of the sim waveform.)")
+        print("--------------------------------------------")
+        
+        
+        
+
+        print("Generating Glue Wave w/ vector length:",vector_length_in_ticks,"...")
 
         #We will create a separate GlueWave() for EACH hardware found in the iospec file:
         # list(set(x)) == uniquify(x)
         hw_list = list(set(self.IO_hardware.values()))
         waves = {}
         for hw in hw_list:
-            waves[hw] = GlueWave([0]*vector_len, strobe_ps, hw, {"VCD_TIMEBASE_PICOSECONDS":str(vcd_timebase_ps),
-                                                                 "GLUE_TIMESTEPS":str(vector_len)})
+            waves[hw] = GlueWave([0]*vector_length_in_ticks, strobe_ps, hw, {"VCD_TIMEBASE_PICOSECONDS":str(vcd_timebase_ps),
+                                                                 "GLUE_TIMESTEPS":str(vector_length_in_ticks)})
             
         
         #Now we will go through each input and add them one by one to the correct Glue wave.
@@ -276,7 +295,8 @@ class GlueConverter():
             try:
                 for t in range(len(waves[hw].vector)):
                     #print(t*strobe_ticks+starttime, vcd[tb_name+"."+io][t*strobe_ticks+starttime])
-                    if vcd[tb_name+"."+io][t*strobe_ticks+starttime] == "1":
+                    vcd_tick = int(t*strobe_to_vcd_timebase_ratio+starttime)
+                    if vcd[tb_name+"."+io][vcd_tick] == "1":
                         waves[hw].set_bit(t,self.IO_pos[io],1)
                 print("done!")
                         
@@ -291,18 +311,21 @@ class GlueConverter():
             print("done!")
             
         #Write glue waves to file.
+        glue_files_written = []
         for glue_wave in waves.values():
             name = output_file_tag+"_"+glue_wave.hardware[2]+".glue"
             print("Writing",name,"...")
-            self.write_glue(glue_wave, name)
+            glue_files_written.append(self.write_glue(glue_wave, name))
 
 
         print("Glue Converter finished!")
         print("Total of",len(waves.keys()),"file(s) written.")
-        print("Timebase of input file was:",vcd_timebase_ps,"ps")
-        print("Length of input file was:",(endtime-starttime)*vcd_timebase_ps/1000000,"us")
-        print("Strobe was:",strobe_ps,"ps")
-        print("# of timesteps was:",vector_len)
+        #print("Timebase of input file was:",vcd_timebase_ps,"ps")
+        #print("Length of input file was:",(endtime-starttime)*vcd_timebase_ps/1000000,"us")
+        #print("Strobe was:",strobe_ps,"ps")
+        #print("# of timesteps was:",vector_len)
+        
+        return glue_files_written
 
 
     #ascii2Glue - Accepts an ascii-formatted file and converts it to a glue wave.
@@ -486,6 +509,9 @@ class GlueConverter():
             #Optional metadata
             for key in glue_wave.metadata.keys():
                 write_file.write("//"+str(key)+":"+str(glue_wave.metadata[key])+"\n")
+        
+        return output_file_name
+
 
     #Read a Glue file into a GlueWave() object.
     #Args:
@@ -996,7 +1022,13 @@ class GlueConverter():
                 #vcd_timebase_ps = float(input("VCD timebase (ps)?"))
                 #tb_name = input("tb name?").strip()
                 tb_name = input("Tb name? (Hit enter to auto identify)").strip()
-                strobe_ps = float(input("Strobe (ps)?"))
+                strobe_ps_txt = input("Strobe ps? (Hit enter for default = 25e3)").strip()
+                try:
+                    strobe_ps = float(strobe_ps_txt)
+                except ValueError:
+                    print("(Using default :) )")
+                    strobe_ps = 25000
+                
                 output_file_name = input("Out file tag?").strip()
                 
                 if len(tb_name) == 0:
