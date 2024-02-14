@@ -63,10 +63,14 @@ class Supply():
         self.io.write(f"APPLY {channel}, {voltage}, {current}")
 
 
-    def set_output_on(self):
+    def set_output_on(self, channel=None):
+        if channel != None:
+            self.log.warning(f"Enabling Instr {self.id} output for all channels, not just ch{channel}")
         self.io.write("OUTPUT ON")
 
-    def set_output_off(self):
+    def set_output_off(self, channel=None):
+        if channel != None:
+            self.log.warning(f"Disabling Instr {self.id} output for all channels, not just ch{channel}")
         self.io.write("OUTPUT OFF")
 
     def get_voltage(self, channel):

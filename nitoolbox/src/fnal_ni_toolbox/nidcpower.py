@@ -65,8 +65,11 @@ class Source_Port:
         self.voltage_limit = voltage_limit
         set_current(self.instrument, self.channel, self.nominal_current, self.voltage_limit)
 
-    def disable(self):
-        disable_output(self.instrument, self.channel)
+    def set_output_on(self):
+        self.instrument.set_output_on(self.channel)
+        
+    def set_output_off(self):
+        self.instrument.set_output_off(self.channel)
 
 
 #NOTE: NIDCPowerInstrument must implement the same interface as supply.py located in the /fnal_libinstrument/
@@ -131,4 +134,11 @@ class NIDCPowerInstrument():
             return self.session.channels[ch].measure(nidcpower.MeasurementTypes.CURRENT)
 
     def disable_output(self,ch):
+        self.session.channels[ch].output_enabled = False
+        
+        
+    def set_output_on(self,ch):
+        self.session.channels[ch].output_enabled = True
+
+    def set_output_off(self,ch):
         self.session.channels[ch].output_enabled = False

@@ -44,7 +44,12 @@ class NiFpga:
     def close(self) -> None:
         if self._session is None:
             return
-        self._log.info("Closing NI FPGA session")
+        #If this is the last line that gets printed before quitting,
+        #sometimes the logger can fail.
+        try:
+            self._log.info("Closing NI FPGA session")
+        except ImportError:
+            print("Closing NI FPGA session")
         self._session.close()
 
     def has_fifo(self, name: str) -> bool:
@@ -87,7 +92,13 @@ class NiFpga:
             fifo.stop()
 
         self._fifos = {}
-        self._log.info("NI FPGA FIFOs stopped")
+        
+        #If this is the last line that gets printed before quitting,
+        #sometimes the logger can fail.
+        try:
+            self._log.info("NI FPGA FIFOs stopped")
+        except ImportError:
+            print("NI FPGA FIFOs stopped")
 
     def __del__(self):
         if self._session is None:
