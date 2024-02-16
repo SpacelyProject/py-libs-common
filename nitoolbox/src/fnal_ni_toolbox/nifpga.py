@@ -88,7 +88,10 @@ class NiFpga:
     def _stop_fifos(self) -> None:
         """Discards all used FIFOs"""
         for name, fifo in self._fifos.items():
-            self._log.debug(f"NI FPGA: destroying {name} FIFO")
+            try:
+                self._log.debug(f"NI FPGA: destroying {name} FIFO")
+            except ImportError:
+                print(f"NI FPGA: destroying {name} FIFO")
             fifo.stop()
 
         self._fifos = {}
