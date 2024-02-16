@@ -1,6 +1,4 @@
 from __future__ import annotations
-from fnal_libprologix import PrologixDevice
-from fnal_log_wizard import LOG_DEBUG
 import time
 import re
 
