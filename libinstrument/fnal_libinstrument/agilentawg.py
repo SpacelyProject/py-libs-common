@@ -56,10 +56,10 @@ class AgilentAWG():
 
         self.display_text("Configuring...")
         # Read all errors stroed in the instrument
-        self.log.blocking("Reading remote instrument errors", LOG_DEBUG)
+        self.log.blocking("Reading remote instrument errors", 7)
         errors = self.read_all_errors()
         errors_count = len(errors)
-        self.log.block_res(level=LOG_DEBUG)
+        self.log.block_res(level=7)
 
         if errors_count == 0:
             self.log.debug("No errors stored")
