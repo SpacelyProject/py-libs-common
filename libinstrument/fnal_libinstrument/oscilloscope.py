@@ -16,7 +16,8 @@ class Oscilloscope():
         else:
             self.log = logger
         
-        
+        self.DEBUG_MODE = True
+
         #VISA or Prologix Interface
         self.io = io
         
@@ -93,27 +94,82 @@ class Oscilloscope():
     def reset(self):
         return self.write("*RST")
 
-    def query(self, query_text):
-        return self.io.query(query_text)
+    # Pop the next error from the error queue.
+    def get_error(self):
+        return self._query("SYST:ERR?")
+    
+    # Return a list of all errors in the error queue. (The total queue is 30 errors deep)
+    def get_all_errors(self):
+        errors = []
+        got_all_errors = False
 
-    def write(self, write_text):
+        while not got_all_errors:
+            next_error = self.get_error()
+            if "No error" in next_error:
+                got_all_errors = True
+            else:
+                errors.append(next_error)
+
+        return errors
+
+    #Raw Query
+    def _query(self,query_text):
+        return self.io.query(query_text)
+    
+    #Raw Write
+    def _write(self,write_text):
         return self.io.write(write_text)
+    
+    #Query with print and error handling
+    def query(self, query_text):
+        self.log.debug(f"Oscilloscope.query: '{query_text}'")
+        return_val = self._query(query_text)
+        if self.DEBUG_MODE:
+            self.log.debug(f"Errors Returned: {self.get_all_errors()}")
+        
+        return return_val
+
+    #Write with print and error handling
+    def write(self, write_text):
+        self.log.debug(f"Oscilloscope.write: '{write_text}'")
+        return_val = self._write(write_text)
+        if self.DEBUG_MODE:
+            self.log.debug(f"Errors Returned: {self.get_all_errors()}")
+        
+        return return_val
+
 
     
     def set_scale(self,scale_V,chan_num=None):
         if chan_num == None:
             for i in [1,2,3,4]:
                 self.write(f":CHAN{i}:SCALE {scale_V}")
-        return self.write(f":CHAN{chan_num}:SCALE {scale_V}")
+        else:
+            return self.write(f":CHAN{chan_num}:SCALE {scale_V}")
         
     def set_timebase(self,timebase_s):
         return self.write(f":TIMEBASE:SCALE {timebase_s}")
-        
-    def set_offset(self,offset_V,chan_num=None):
+
+    def set_time_offset(self, time_offset_s):
+        return self.write(f":TIMEBASE:POSITION {time_offset_s}")
+
+    def set_bandwidth_limit(self,value,chan_num=None):
+        if value:
+            value = 1
+        else:
+            value = 0
+        if chan_num == None:
+            for i in [1,2,3,4]:
+                self.write(f":CHAN{i}:BWL {value}")
+        else:
+            return self.write(f":CHAN{chan_num}:BWL {value}")
+
+    def set_voltage_offset(self,offset_V,chan_num=None):
         if chan_num == None:
             for i in [1,2,3,4]:
                 self.write(f":CHAN{i}:OFFSET {offset_V}")
-        return self.write(f":CHAN{chan_num}:OFFSET {offset_V}")
+        else:
+            return self.write(f":CHAN{chan_num}:OFFSET {offset_V}")
     
     def get_wave(self,chan_num=1, convert_to_volts=True):
         if self.flavor == "TEKTRONIX":

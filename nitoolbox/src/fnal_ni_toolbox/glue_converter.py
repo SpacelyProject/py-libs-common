@@ -210,6 +210,10 @@ class GlueConverter():
     #of those.
     def __init__(self, iospec_file=None):
         self.loaded_iospec_file = False
+
+        #Make sure that self.IOs is defined even if we don't have an iospec file yet.
+        self.IOs = []
+
         if iospec_file is not None:
             parse_result = self.parse_iospec_file(iospec_file)
 
@@ -226,6 +230,10 @@ class GlueConverter():
     #       vcd_timebase_ps - Timebase of your VCD file in picoseconds
     def VCD2Glue(self, vcd_file_name, strobe_ps, output_file_tag, inputs_only=True, tb_name=None, vcd_timebase_ps=None):
     
+        if len(self.IOs) == 0:
+            print("GlueConverter ERROR: Tried to run a gc function w/o defining any IOs!")
+            return -1
+
         #HAVE NOT IMPLEMENTED MULTIPLEXED IOs FOR THIS FUNCTION YET.
         assert self.Multiplexed_IOs == []
         
@@ -331,6 +339,10 @@ class GlueConverter():
     #ascii2Glue - Accepts an ascii-formatted file and converts it to a glue wave.
     #Returns -1 on error
     def ascii2Glue(self, ascii_file_name, ticks_per_bit, output_file_tag, inputs_only=True):
+
+        if len(self.IOs) == 0:
+            print("GlueConverter ERROR: Tried to run a gc function w/o defining any IOs!")
+            return -1
 
         with open(ascii_file_name, 'r') as read_file:
             ascii_lines = read_file.readlines()
@@ -577,6 +589,10 @@ class GlueConverter():
     #Plots a glue waveform using matplotlib. Useful for debugging.
     def plot_glue(self,glue_file,time_interval_ps=None):
 
+        if len(self.IOs) == 0:
+            print("GlueConverter ERROR: Tried to run a gc function w/o defining any IOs!")
+            return -1
+
         if type(glue_file) == str:
             wave = self.read_glue(glue_file)
             if wave == None:
@@ -646,6 +662,11 @@ class GlueConverter():
 
     #Prints out a table representing the currently loaded IOspec.
     def print_iospec(self):
+
+        if len(self.IOs) == 0:
+            print("GlueConverter ERROR: Tried to run a gc function w/o defining any IOs!")
+            return -1
+
         #List of all unique hardware chassises.
         hw_list = list(set(self.IO_hardware.values()))
         
@@ -767,6 +788,11 @@ class GlueConverter():
         self.loaded_iospec_file = True
             
     def compare(self, wave1, wave2):
+
+        if len(self.IOs) == 0:
+            print("GlueConverter ERROR: Tried to run a gc function w/o defining any IOs!")
+            return -1
+
         if wave1 is None or wave2 is None:
             print("(ERR) gc.compare: Cannot compare",wave1,"with",wave2)
             return -1
@@ -797,6 +823,10 @@ class GlueConverter():
 
     def diff(self, wave1, wave2, diff_signals):
 
+        if len(self.IOs) == 0:
+            print("GlueConverter ERROR: Tried to run a gc function w/o defining any IOs!")
+            return -1
+
         #A single string should be treated as a list of length 1.
         if type(diff_signals) == str:
             diff_signals = [diff_signals]
@@ -823,6 +853,10 @@ class GlueConverter():
     #Get a particular bit by name.
     def get_bitstream(self, wave, data_name):
 
+        if len(self.IOs) == 0:
+            print("GlueConverter ERROR: Tried to run a gc function w/o defining any IOs!")
+            return -1
+
         bitstream = []
         
         data_sig =  [1 if x & (1 << self.IO_pos[data_name]) else 0 for x in wave.vector]
@@ -833,6 +867,7 @@ class GlueConverter():
         return bitstream
 
     def export_bitstream(self, wave, data_name, outfile):
+
         bitstream = self.get_bitstream(wave,data_name)
         
         with open(outfile,"w") as write_file:
@@ -841,6 +876,10 @@ class GlueConverter():
     # get_clocked_bitstream
     # Converts a Glue waveform with a data signal and its corresponding clock into a bit stream!
     def get_clocked_bitstream(self, wave, clock_name, data_name):
+
+        if len(self.IOs) == 0:
+            print("GlueConverter ERROR: Tried to run a gc function w/o defining any IOs!")
+            return -1
 
         bitstream = []
 
