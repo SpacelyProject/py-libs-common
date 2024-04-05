@@ -122,7 +122,8 @@ class Oscilloscope():
     
     #Query with print and error handling
     def query(self, query_text):
-        self.log.debug(f"Oscilloscope.query: '{query_text}'")
+        if self.DEBUG_MODE:
+            self.log.debug(f"Oscilloscope.query: '{query_text}'")
         return_val = self._query(query_text)
         if self.DEBUG_MODE:
             self.log.debug(f"Errors Returned: {self.get_all_errors()}")
@@ -131,7 +132,8 @@ class Oscilloscope():
 
     #Write with print and error handling
     def write(self, write_text):
-        self.log.debug(f"Oscilloscope.write: '{write_text}'")
+        if self.DEBUG_MODE:
+            self.log.debug(f"Oscilloscope.write: '{write_text}'")
         return_val = self._write(write_text)
         if self.DEBUG_MODE:
             self.log.debug(f"Errors Returned: {self.get_all_errors()}")
@@ -205,8 +207,9 @@ class Oscilloscope():
             query_data = self.query(":WAVEFORM:DATA?")
         except Exception as e:
             print(e)
-            self.log.error("Failed to read data from Scope! Trying again...")
-            query_data = self.query(":WAVEFORM:DATA?")
+            self.log.error("Failed to read data from Scope!")
+            #query_data = self.query(":WAVEFORM:DATA?")
+            return None
         
         raw_wave = [float(x) for x in query_data[10:].split(",")]
         
