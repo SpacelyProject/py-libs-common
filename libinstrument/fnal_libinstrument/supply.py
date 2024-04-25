@@ -64,6 +64,10 @@ class Supply(Source_Instrument):
         self.io.write(f"APPLY {channel}, {voltage}, {current}")
 
 
+    def set_current(self, channel, current, voltage_limit=None):
+        print("ERROR !!! This is a voltage supply, which cannot operate in constant-current mode.")
+        raise NotImplementedError
+
     def set_output_on(self, channel=None):
         if channel != None:
             self.log.warning(f"Enabling Instr {self.id} output for all channels, not just ch{channel}")
