@@ -1,9 +1,10 @@
 import time
+from . import Source_Instrument
 
 # Supply
 
 
-class Supply():
+class Supply(Source_Instrument):
 
 
     def __init__(self, logger, io):
@@ -62,6 +63,10 @@ class Supply():
 
         self.io.write(f"APPLY {channel}, {voltage}, {current}")
 
+
+    def set_current(self, channel, current, voltage_limit=None):
+        print("ERROR !!! This is a voltage supply, which cannot operate in constant-current mode.")
+        raise NotImplementedError
 
     def set_output_on(self, channel=None):
         if channel != None:

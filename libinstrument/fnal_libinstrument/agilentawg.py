@@ -262,7 +262,7 @@ class AgilentAWG():
             self.log.critical(f"Failed to set pulse magnitude to  {val_mV} mV")
 
 
-    def config_AWG_as_Pulse(self, pulse_mag_mV, pulse_width_us=0.28, pulse_period_us=9,):
+    def config_AWG_as_Pulse(self, pulse_mag_mV, pulse_width_us=0.28, pulse_period_us=9,trig_delay_ns=0):
         self.set_output(False)
         self.send_line_awg("FUNC PULS", check_for_errors=False)
 
@@ -287,6 +287,9 @@ class AgilentAWG():
         self.send_line_awg("BURS:MODE TRIG")
         self.send_line_awg("TRIG:SOUR EXT")
         self.send_line_awg("TRIG:SLOP POS")
+
+        self.send_line_awg(f"TRIG:DELAY {trig_delay_ns}")
+
         #Each Trig In will result in 1 burst
         self.send_line_awg("BURS:NCYC 1")
 

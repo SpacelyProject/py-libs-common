@@ -12,70 +12,13 @@
 # - PSU channels are 0,1,2 while SMU channels are 0,1,2,3
 
 import nidcpower
-#Wrapper class just to hold the instrument and channel info for a given port. 
-class Source_Port:
-
-    # Arguments:
-    #  * instrument = handle to the instrument responsible for this channel. (Could be nidcpower, or supply)
-    def __init__(self, instrument, channel, default_current_limit=0.001, default_voltage_limit=0.1):
-        self.instrument = instrument;
-        self.channel = channel;
-        self.default_current_limit=default_current_limit;
-        self.default_voltage_limit=default_voltage_limit;
-        self.current_limit = default_current_limit;
-        self.voltage_limit = default_voltage_limit;
-        self.nominal_voltage = None;
-        self.nominal_current = None;
-
-
-    def set_voltage(self, voltage, current_limit=None):
-        if current_limit == None:
-            self.current_limit = self.default_current_limit
-        else:
-            self.current_limit = current_limit
-
-        self.nominal_voltage = voltage
-        self.nominal_current = None
-        self.instrument.set_voltage(self.channel, self.nominal_voltage, self.current_limit)
-
-    def set_current(self, current, voltage_limit=None):
-        if voltage_limit == None:
-            self.voltage_limit = self.default_voltage_limit
-        else:
-            self.voltage_limit = voltage_limit
-        self.nominal_current = current
-        self.nominal_voltage = None
-        self.instrument.set_current(self.channel, self.nominal_current, self.voltage_limit)
-
-    def report(self):
-        if self.nominal_voltage is not None:
-            print("VOLTAGE:",round(self.get_voltage(),7), "(nominal ",self.nominal_voltage,")")
-            print("Current:",round(self.get_current(),7), "(limit ",self.current_limit,")")
-        if self.nominal_current is not None:
-            print("CURRENT:",round(self.get_current(),7), "(nominal ",self.nominal_current,")")
-            print("Voltage:",round(self.get_voltage(),7), "(limit ",self.voltage_limit,")")
-
-    def get_voltage(self):
-        return self.instrument.get_voltage(self.channel)
-
-    def get_current(self):
-        return self.instrument.get_current(self.channel)
-
-    def update_voltage_limit(self, voltage_limit):
-        self.voltage_limit = voltage_limit
-        set_current(self.instrument, self.channel, self.nominal_current, self.voltage_limit)
-
-    def set_output_on(self):
-        self.instrument.set_output_on(self.channel)
-        
-    def set_output_off(self):
-        self.instrument.set_output_off(self.channel)
+from fnal_libinstrument import Source_Instrument
 
 
 #NOTE: NIDCPowerInstrument must implement the same interface as supply.py located in the /fnal_libinstrument/
 #library, because both of them could be called by the Source_Port() class.
 
-class NIDCPowerInstrument():
+class NIDCPowerInstrument(Source_Instrument):
 
 
     def __init__(self, resource_name):
