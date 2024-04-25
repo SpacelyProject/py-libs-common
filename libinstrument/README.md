@@ -1,3 +1,3 @@
-# FNAL AWG Library
+# FNAL Instrument Library
 
 *This library has no documentation (yet!).* Feel free to contribute some :)

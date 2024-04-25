@@ -1,9 +1,10 @@
 import time
+from . import Source_Instrument
 
 # Supply
 
 
-class Supply():
+class Supply(Source_Instrument):
 
 
     def __init__(self, logger, io):
