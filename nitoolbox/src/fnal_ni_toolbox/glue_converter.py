@@ -45,11 +45,19 @@
 #
 # 3'b010, 3'b001, 3'b110, 3'b111
 
-
-from vcdvcd import VCDVCD
-import matplotlib.pyplot as plt
-import tkinter as tk
-from tkinter import filedialog
+try: 
+    from vcdvcd import VCDVCD
+    import matplotlib.pyplot as plt
+    import tkinter as tk
+    from tkinter import filedialog
+    from bokeh.plotting import figure, show
+except ModuleNotFoundError as e:
+    print("----------------------------------------------------------------------------")
+    print("|(WARNING) You do not have one or more modules required by Glue Converter: |")
+    print(f"|{str(e):74}|")
+    print("|To use Glue Converter functions you may need to re-run SetupWindows.ps1,  |")
+    print("|or install the required modules manually.                                 |")
+    print("----------------------------------------------------------------------------")
 
 
 GCSHELL_HELPTEXT="""
@@ -92,16 +100,28 @@ class GlueWave():
         self.strobe_ps = strobe_ps
         self.len = len(self.vector)
         self.mask = 0
-        if type(hardware) == str:
-            self.hardware = hardware.split("/")
-        else:
-            self.hardware = hardware
 
-        #Convenient access for the fpga-related or fifo-related
-        #part of the hw designation.
-        self.hardware_str = "/".join(self.hardware)
-        self.fpga_name = "/".join(self.hardware[0:2])
-        self.fifo_name = self.hardware[2]
+        if type(hardware) == str or type(hardware) == list:
+            if type(hardware) == str:
+                self.hardware = hardware.split("/")
+                self.hardware_str = hardware
+            elif type(hardware) == list:
+                self.hardware = hardware
+                #Convenient access for the fpga-related or fifo-related
+                #part of the hw designation.
+                self.hardware_str = "/".join(self.hardware)
+            self.fpga_name = "/".join(self.hardware[0:2])
+            self.fifo_name = self.hardware[2]
+            
+        else:
+            if hardware is not None:
+                print("(err) GlueWave.__init__(): Did not understand hardware = ",hardware)
+            self.hardware = None
+            self.hardware_str = None
+            self.fpga_name = None
+            self.fifo_name = None
+        
+        
             
         self.metadata = {}
 
@@ -578,12 +598,18 @@ class GlueConverter():
 
         #It processes the next two lines to extract floating point numbers (beren)
         #timebase_ps = float(lines[1].strip().split(":")[-1])
+        hardware = None
+        strobe_ps = None
         for line in lines:
             if "STROBE" in line:   
                 strobe_ps = float(line.strip().split(":")[-1])
             if "HARDWARE" in line:
                 hardware = line.strip().split(":")[-1]
 
+        if hardware == None:
+            print("WARNING!!! Glue file at",glue_file_name,"has no hardware defined.")
+        if strobe_ps == None:
+            print("WARNING!!! Glue file at",glue_file_name,"has no strobe_ps defined.")
         return GlueWave(vector,strobe_ps,hardware)
 
     #Plots a glue waveform using matplotlib. Useful for debugging.
@@ -615,11 +641,15 @@ class GlueConverter():
         IO_waves = []  
         IO_wave_names = []
 
+        if wave.hardware_str is None:
+            print("(warn) gc.plotglue: No hardware is specified, so all IOs will be plotted.")
+
         for i in range(len(self.IOs)):
             io = self.IOs[i]
             #Only plot IOs which correspond to the hardware that generated this Glue wave (others will be zero)
+            #If no hardware is specified, just plot all waves.
             #print("(DBG)",self.IO_hardware[io],wave.hardware_str)
-            if self.IO_hardware[io] == wave.hardware_str:
+            if wave.hardware_str is None or self.IO_hardware[io] == wave.hardware_str:
                 IO_waves.append([(v & 2**self.IO_pos[self.IOs[i]] > 0) for v in vector])
                 IO_wave_names.append(io)
 
@@ -700,6 +730,28 @@ class GlueConverter():
 
             print("I/O Dir Integer for this HW:",this_hw_io_dir,"(",bin(this_hw_io_dir),")")
     
+
+    # PARAMS:
+    #       waves - List of waves, defined as integer lists.
+    #       wave_names - List of the names of these waves, matching 1-to-1 with the waves themselves.
+    def plot_waves_bokeh(self, waves, wave_names, strobe_ps):
+        assert len(waves) > 0 and len(waves) == len(wave_names)
+
+
+        p = figure(title="Simple line example", x_axis_label="x", y_axis_label="y")
+
+        #x axis
+        x = [i for i in range(len(waves[0]))]
+
+        plots = []
+
+        for i in range(len(waves)):
+            p.step(x, waves[i],legend_label=wave_names[i],line_width=1)
+            #plots.append(Plot(width=500,height=100))
+            #plots[-1].add_glyph() #Work in progress...
+        
+        show(p)
+        
 
     #Reads an IO spec in the format specified above, and parses
     #its information into lists and dictionaries so it can be
