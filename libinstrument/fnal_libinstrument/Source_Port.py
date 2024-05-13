@@ -56,7 +56,7 @@ class Source_Port:
     #  * instrument = handle to the instrument responsible for this channel. (Could be nidcpower, or supply)
     def __init__(self, instrument, channel, default_current_limit=0.001, default_voltage_limit=0.1):
     
-        if not issubclass(instrument, Source_Instrument):
+        if not issubclass(type(instrument), Source_Instrument):
             print(f"!!! WARNING !!! tried to instantiate Source_Port for {instrument}:{channel} but {instrument} does not implement the Source_Instrument abstract class.")
             
         self.instrument = instrument;
