@@ -5,8 +5,8 @@ version = "0.2"
 
 requires-python = ">=3.10"
 dependencies = [
-    "fnal_libIO @ git+https://github.com/Fermilab-Microelectronics/py-libs-common#subdirectory=libIO",
-    "fnal_log_wizard @ git+https://github.com/Fermilab-Microelectronics/py-libs-common#subdirectory=liblogwizard"
+    "fnal_libIO @ git+https://github.com/SpacelyProject/py-libs-common#subdirectory=libIO",
+    "fnal_log_wizard @ git+https://github.com/SpacelyProject/py-libs-common#subdirectory=liblogwizard"
 ]
 
 authors = [
@@ -27,8 +27,8 @@ classifiers = [
 logging = ["fnal_log_wizard"]
 
 [project.urls]
-"Homepage" = "https://github.com/Fermilab-Microelectronics/py-libs-common/fnal_libinstrument"
-"Bug Tracker" = "https://github.com/Fermilab-Microelectronics/py-libs-common/issues"
+"Homepage" = "https://github.com/SpacelyProject/py-libs-common/fnal_libinstrument"
+"Bug Tracker" = "https://github.com/SpacelyProject/py-libs-common/issues"
 
 [build-system]
 requires = ["hatchling"]

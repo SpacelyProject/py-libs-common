@@ -21,8 +21,8 @@ classifiers = [
 ]
 
 [project.urls]
-"Homepage" = "https://github.com/Fermilab-Microelectronics/py-libs-common/liblogwizard"
-"Bug Tracker" = "https://github.com/Fermilab-Microelectronics/py-libs-common/issues"
+"Homepage" = "https://github.com/SpacelyProject/py-libs-common/liblogwizard"
+"Bug Tracker" = "https://github.com/SpacelyProject/py-libs-common/issues"
 
 [build-system]
 requires = ["hatchling"]
