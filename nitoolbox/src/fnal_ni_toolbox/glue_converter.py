@@ -50,7 +50,7 @@ try:
     import matplotlib.pyplot as plt
     import tkinter as tk
     from tkinter import filedialog
-    from bokeh.plotting import figure, show
+    #from bokeh.plotting import figure, show
 except ModuleNotFoundError as e:
     print("----------------------------------------------------------------------------")
     print("|(WARNING) You do not have one or more modules required by Glue Converter: |")
@@ -734,23 +734,23 @@ class GlueConverter():
     # PARAMS:
     #       waves - List of waves, defined as integer lists.
     #       wave_names - List of the names of these waves, matching 1-to-1 with the waves themselves.
-    def plot_waves_bokeh(self, waves, wave_names, strobe_ps):
-        assert len(waves) > 0 and len(waves) == len(wave_names)
+    # def plot_waves_bokeh(self, waves, wave_names, strobe_ps):
+        # assert len(waves) > 0 and len(waves) == len(wave_names)
 
 
-        p = figure(title="Simple line example", x_axis_label="x", y_axis_label="y")
+        # p = figure(title="Simple line example", x_axis_label="x", y_axis_label="y")
 
-        #x axis
-        x = [i for i in range(len(waves[0]))]
+        # #x axis
+        # x = [i for i in range(len(waves[0]))]
 
-        plots = []
+        # plots = []
 
-        for i in range(len(waves)):
-            p.step(x, waves[i],legend_label=wave_names[i],line_width=1)
-            #plots.append(Plot(width=500,height=100))
-            #plots[-1].add_glyph() #Work in progress...
+        # for i in range(len(waves)):
+            # p.step(x, waves[i],legend_label=wave_names[i],line_width=1)
+            # #plots.append(Plot(width=500,height=100))
+            # #plots[-1].add_glyph() #Work in progress...
         
-        show(p)
+        # show(p)
         
 
     #Reads an IO spec in the format specified above, and parses
