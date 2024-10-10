@@ -228,8 +228,10 @@ class GlueConverter():
     #You ALWAYS need an I/O spec file to interpret or write Glue files, so we initialize it
     #here. But we don't immediately ask for a VCD file / timebase bc you may want to use multiple
     #of those.
-    def __init__(self, iospec_file=None):
+    def __init__(self, iospec_file=None, logger = None):
         self.loaded_iospec_file = False
+        
+        self._log = logger
 
         #Make sure that self.IOs is defined even if we don't have an iospec file yet.
         self.IOs = []
@@ -455,25 +457,86 @@ class GlueConverter():
         
         return name
 
-    #NOT COMPLETE
-    def data2Glue(self, data_file_name, clock_pin_name, data_pin_name, output_file_tag, glue_ticks_per_bit, inputs_only=True):
+    
+    
+    def dict2Glue(self, waves_dict, hardware_str = None, output_mode=0, bit_clock_freq=None):
+        """Creates a GlueWave from a dictionary representation of waves.
+           Returns a GlueWave object, or -1 on failure.
+           
+           Arguments:
+           waves_dict -- Dictionary of the form {"signal_name" : [1,0,1,0,...]}
+           hardware_str -- {FPGA}/{I/O}/{interface}. If None, Glue Converter will attempt to infer hardware.
+           output_mode -- Integer 0~3. 0 = No outputs, only Glue Wave object.
+                                       1 = Print ASCII version of wave to file.
+                                       2 = Print GlueWave to file.
+                                       3 = Print both ASCII and GlueWave to file.
+           bit_clock_freq -- Clock frequency in Hz of the arbitrary pattern generator which will output
+                             this waveform. Note that this parameter is purely for writing descriptive 
+                             metadata into the Glue file. It does not affect the actual frequency of the pattern
+                             generator, which is typically hardware defined. This argument only needs to be 
+                             supplied if you want to plot the waveform later with an accurate timescale.
+           """
+    
+        ## (0) Lint check.
+        for key in waves_dict.keys():
+            if key not in self.IOs:
+                self._log.error(f"GlueConverter ERROR: {key} is missing from current iospec.")
+                return -1
+    
+    
+        ## (1) Attempt to infer hardware if necessary. 
+        for key in waves_dict.keys():
+            
+            if hardware_str == None:
+                hardware_str = self.IO_hardware[key]
+                self._log.debug(f"Inferring HW is {hardware_str} because of signal {key}.")
+             
+            if self.IO_hardware[key] != hardware_str:
+                self._log.error(f"Signal {key} belongs to {self.IO_hardware[key]}, not {hardware_str}. Cannot generate a single Glue Wave for multiple hardware.")
+                return -1
+    
+        ## (2) Create a Vector and enter appropriate bits.
+        max_pattern_len = max([len(x) for x in waves_dict.values()])
+    
+        vector = [0 for _ in range(max_pattern_len)]
 
-        if glue_ticks_per_bit < 2:
-            print("ERR: data2Glue requires glue_ticks_per_bit > 2, actual value:",glue_ticks_per_bit)
-            return
+        #For each signal under consideration:
+        for key in waves_dict.keys():
+            io_pos = self.IO_pos[key]
+            signal_len = len(waves_dict[key])
 
-        with open(data_file_name, 'r') as read_file:
-            data_string = read_file.read()
+            for i in range(len(vector)):
+                if i < signal_len:   
+                    vector[i] = vector[i] | (waves_dict[key][i] << io_pos)
+                else:
+                    #Pad out to the length of vector based on the last value of the signal.
+                    vector[i] = vector[i] | (waves_dict[key][signal_len-1] << io_pos)
 
+
+        if bit_clock_freq == None:
+            self._log.debug("Assuming default 10MHz clock frequency for generated Glue Wave.")
+            bit_clock_freq = 10e6
         
+        strobe_ps = 1/bit_clock_freq * 1e12
         
-        #We will create a separate GlueWave() for EACH hardware found in the iospec file:
-        # list(set(x)) == uniquify(x)
-        hw_list = list(set(self.IO_hardware.values()))
-        waves = {}
-        for hw in hw_list:
-            waves[hw] = GlueWave([0]*vector_len, 0, hw, {"VCD_TIMEBASE_PICOSECONDS":str(vcd_timebase_ps),
-                                                                 "GLUE_TIMESTEPS":str(vector_len)})
+        ## (3) Output appropriate files.
+        
+        #2) Writing to an ASCII file.
+        if output_mode in [1,3]:
+            with open("genpattern.txt",'w') as write_file:
+                for w in waves_dict.keys():
+                    write_file.write(w+":"+"".join([str(x) for x in waves_dict[w]])+"\n")
+            
+            
+        glue_wave = GlueWave(vector,strobe_ps,hardware_str)
+    
+        if output_mode in [2,3]:
+            output_file_name = hardware_str.replace("/","_") + "_gen.glue"
+            self.write_glue(glue_wave,output_file_name)
+            
+        return glue_wave
+    
+    
         
 
     #Write a GlueWave() object to file. 
