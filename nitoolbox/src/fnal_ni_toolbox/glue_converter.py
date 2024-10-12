@@ -232,6 +232,9 @@ class GlueConverter():
         self.loaded_iospec_file = False
         
         self._log = logger
+        
+        #Set verbosity > 0 to display additional logging.
+        self.verbosity = 0
 
         #Make sure that self.IOs is defined even if we don't have an iospec file yet.
         self.IOs = []
@@ -489,7 +492,8 @@ class GlueConverter():
             
             if hardware_str == None:
                 hardware_str = self.IO_hardware[key]
-                self._log.debug(f"Inferring HW is {hardware_str} because of signal {key}.")
+                if self.verbosity > 0:
+                    self._log.debug(f"Inferring HW is {hardware_str} because of signal {key}.")
              
             if self.IO_hardware[key] != hardware_str:
                 self._log.error(f"Signal {key} belongs to {self.IO_hardware[key]}, not {hardware_str}. Cannot generate a single Glue Wave for multiple hardware.")
@@ -514,8 +518,9 @@ class GlueConverter():
 
 
         if bit_clock_freq == None:
-            self._log.debug("Assuming default 10MHz clock frequency for generated Glue Wave.")
             bit_clock_freq = 10e6
+            if self.verbosity > 0:
+                self._log.debug("Assuming default 10MHz clock frequency for generated Glue Wave.")
         
         strobe_ps = 1/bit_clock_freq * 1e12
         
