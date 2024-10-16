@@ -125,6 +125,11 @@ class GlueWave():
             
         self.metadata = {}
 
+    def __eq__(self, other):
+        if self.vector == other.vector and self.hardware == other.hardware and self.strobe_ps == other.strobe_ps:
+            return True
+        else:
+            return False
 
     #Set all bits in the mask to true. Useful for efficiently setting
     #a large number of default bits. 
@@ -361,9 +366,24 @@ class GlueConverter():
         return glue_files_written
 
 
-    #ascii2Glue - Accepts an ascii-formatted file and converts it to a glue wave.
-    #Returns -1 on error
-    def ascii2Glue(self, ascii_file_name, ticks_per_bit, output_file_tag, inputs_only=True):
+    
+    def ascii2Glue(self, ascii_file_name, ticks_per_bit=1, output_mode = 0, inputs_only=True, bit_clock_freq=None):
+        """ascii2Glue - Accepts an ascii-formatted file and converts it to a glue wave.
+           Returns -1 on error
+           
+           Arguments:
+           ascii_file_name -- EWISOTT
+           inputs_only -- Only care about IOs which are marked as ASIC inputs.
+           output_mode -- Integer 0~3. 0 = No outputs, only Glue Wave object.
+                                       1 = Print GlueWave to file.
+           ticks_per_bit -- A time scale factor parameter. How many ticks in the GlueWave should be inferred from
+                            each bit of the ASCII wave.
+           bit_clock_freq -- Clock frequency in Hz of the arbitrary pattern generator which will output
+                             this waveform. Note that this parameter is purely for writing descriptive 
+                             metadata into the Glue file. It does not affect the actual frequency of the pattern
+                             generator, which is typically hardware defined. This argument only needs to be 
+                             supplied if you want to plot the waveform later with an accurate timescale.
+           """
 
         if len(self.IOs) == 0:
             print("GlueConverter ERROR: Tried to run a gc function w/o defining any IOs!")
@@ -389,13 +409,22 @@ class GlueConverter():
         bitstring_len = max([len(b) for b in bitstrings.values()])
         vector_len = ticks_per_bit*bitstring_len
 
+
+        if bit_clock_freq == None:
+            bit_clock_freq = 10e6
+            if self.verbosity > 0:
+                self._log.debug("Assuming default 10MHz clock frequency for generated Glue Wave.")
+        
+        strobe_ps = 1/bit_clock_freq * 1e12
+
+
         #We will create a separate GlueWave() for EACH hardware found in the iospec file:
         # list(set(x)) == uniquify(x)
         hw_list = list(set(self.IO_hardware.values()))
         waves = {}
         for hw in hw_list:
             #NOTE: strobe_ps of 25000 (=25 ns) comes from assuming a default FPGA clock of 40 MHz. 
-            waves[hw] = GlueWave([0]*vector_len, 25000, hw, {"GLUE_TIMESTEPS":str(vector_len)})
+            waves[hw] = GlueWave([0]*vector_len, strobe_ps, hw, {"GLUE_TIMESTEPS":str(vector_len)})
 
         
         #Now we will go through each input and add them one by one to the correct Glue wave.
@@ -449,16 +478,23 @@ class GlueConverter():
             #print(waves[hw].vector)    
         #Write glue waves to file.
         for glue_wave in waves.values():
-            name = output_file_tag+"_"+glue_wave.hardware[2]+".glue"
-            print("Writing",name,"...")
-            self.write_glue(glue_wave, name)
+            if output_mode == 1:
+                output_file_name = glue_wave.hardware_str.replace("/","_") + "_gen.glue"
+                self.write_glue(glue_wave,output_file_name)
+            
+            #name = output_file_tag+"_"+glue_wave.hardware[2]+".glue"
+            #print("Writing",name,"...")
+            #self.write_glue(glue_wave, name)
 
 
         print("Glue Converter finished!")
         print("Total of",len(waves.keys()),"file(s) written.")
         print("# of timesteps was:",vector_len)
         
-        return name
+        if len(waves) > 1:
+            self._log.warning("Multiple Glue Waves generated, only one will be returned.")
+        
+        return list(waves.values())[0]
 
     
     
@@ -620,6 +656,10 @@ class GlueConverter():
     #   - GlueWave(), or None on failure.
     def read_glue(self,glue_file_name):
 
+        if type(glue_file_name) == GlueWave:
+            self._log.warning("Unnecessarily invoked gc.read_glue() on an argument which is already a GlueWave.")
+            return glue_file_name
+            
         try:
             with open(glue_file_name,"r") as read_file:
                 lines = read_file.readlines()

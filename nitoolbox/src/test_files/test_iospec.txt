@@ -1,0 +1,14 @@
+//
+// An iospec for testing.
+//
+
+
+
+
+HARDWARE Caribou/apg/write BEGIN
+
+A,I,0
+B,I,1
+C,I,2
+
+END
