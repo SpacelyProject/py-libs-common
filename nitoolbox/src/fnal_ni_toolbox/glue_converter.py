@@ -126,6 +126,8 @@ class GlueWave():
         self.metadata = {}
 
     def __eq__(self, other):
+        if type(other) != GlueWave:
+            return False
         if self.vector == other.vector and self.hardware == other.hardware and self.strobe_ps == other.strobe_ps:
             return True
         else:
