@@ -54,22 +54,34 @@ class Source_Port:
 
     # Arguments:
     #  * instrument = handle to the instrument responsible for this channel. (Could be nidcpower, or supply)
-    def __init__(self, instrument, channel, default_current_limit=0.001, default_voltage_limit=0.1):
+    def __init__(self, instrument, channel, default_current_limit=0.001, default_voltage_limit=0.1, warn_voltages=[None,None]):
     
         if not issubclass(type(instrument), Source_Instrument):
             print(f"!!! WARNING !!! tried to instantiate Source_Port for {instrument}:{channel} but {instrument} does not implement the Source_Instrument abstract class.")
             
-        self.instrument = instrument;
-        self.channel = channel;
-        self.default_current_limit=default_current_limit;
-        self.default_voltage_limit=default_voltage_limit;
-        self.current_limit = default_current_limit;
-        self.voltage_limit = default_voltage_limit;
-        self.nominal_voltage = None;
-        self.nominal_current = None;
+        self.instrument = instrument
+        self.channel = channel
+        self.default_current_limit=default_current_limit
+        self.default_voltage_limit=default_voltage_limit
+        self.current_limit = default_current_limit
+        self.voltage_limit = default_voltage_limit
+        self.nominal_voltage = None
+        self.nominal_current = None
+        self.warn_voltages = warn_voltages
 
 
-    def set_voltage(self, voltage, current_limit=None):
+    def set_voltage(self, voltage, current_limit=None,force=False):
+
+        #Voltage warn limit checks:
+        if force == False:
+            if self.warn_voltages[0] is not None and voltage < self.warn_voltages[0]:
+                print(f"ERROR: Attempted to set Channel {self.channel} to V={voltage}, which is less than minimum V={self.warn_voltages[0]}. Set force=True if this is what you truly want to do.")
+                return
+            if self.warn_voltages[1] is not None and voltage > self.warn_voltages[1]:
+                print(f"ERROR: Attempted to set Channel {self.channel} to V={voltage}, which is greater than maximum V={self.warn_voltages[1]}. Set force=True if this is what you truly want to do.")
+                return
+
+        
         if current_limit == None:
             self.current_limit = self.default_current_limit
         else:
