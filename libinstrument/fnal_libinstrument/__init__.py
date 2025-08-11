@@ -7,6 +7,8 @@ from .agilentawg import AgilentAWG
 from .oscilloscope import Oscilloscope
 from .supply import Supply
 from .nidcpower import NIDCPowerInstrument
+from .optical_power_meter import OpticalPowerMeter
+from .laser import Laser
 
 
 # List all symbols that should be externally-importable symbols here
@@ -18,5 +20,7 @@ __all__ = [
     'Supply',
     'Source_Port',
     'Source_Instrument',
-    'NIDCPowerInstrument'
+    'NIDCPowerInstrument',
+    'OpticalPowerMeter',
+    'Laser'
 ]
