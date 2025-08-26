@@ -57,6 +57,11 @@ class VISAInterface(GenericInterface):
         
         #Default timeout of 2 seconds for communicating.
         self.inst.timeout = 2000
+        
+        #If this variable is True, any time a command is sent, the VISA interface will
+        #postpend an "*OPC?" query and not return until the instrument signals that the command
+        #is complete. 
+        self.wait_for_write_completion = True
 
     
     def set_timeout(self,timeout_ms):
@@ -71,4 +76,12 @@ class VISAInterface(GenericInterface):
         return self.inst.query(query_text)
 
     def write(self, write_text):
-        return self.inst.write(write_text)
+        if self.wait_for_write_completion:
+            # *OPC? instructs the instrument to write a 1 in the buffer when all commands are complete. 
+            # inst.read() waits until we get that "1", confirming that the write has finished.
+            self.inst.write(write_text+";*OPC?")
+            self.inst.read()
+        else:
+            self.inst.write(write_text)
+        return 
+        

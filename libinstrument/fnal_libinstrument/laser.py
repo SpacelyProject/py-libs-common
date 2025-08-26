@@ -13,7 +13,9 @@ class Laser():
 
         self.log = logger
         self.io = io
-        
+        #Default -10 dBm = 100 uW 
+        #This is below power limits for a class 1 laser.
+        self.power_limit_dBm = -10 
         self.io.set_timeout(1000)
         
         
@@ -44,12 +46,17 @@ class Laser():
                     print(e)
                     print(self.get_error())
                     
-                    
+    def set_power_limit_dBm(self,power_limit_dBm): 
+        self.power_limit_dBm = power_limit_dBm
                     
     def set_wavelength_nm(self, wavelength_nm):
         self.io.write(f":WAV {wavelength_nm}NM")
         
     def set_power_level_dBm(self,power_level_dBm):
+        if power_level_dBm > self.power_limit_dBm:
+            self.log.warning(f"WARNING: Attempted to set illegal laser power {power_level_dBm} > {self.power_limit_dBm}. Please reconsider your life choices, and if you really need that much power, increase the limit with Laser.set_power_limit_dBm()")
+            return
+            
         self.io.write(f":POW:LEV {power_level_dBm}DBM")
     
     def set_output_on(self):

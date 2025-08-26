@@ -14,7 +14,7 @@ class OpticalPowerMeter():
         self.log = logger
         self.io = io
         
-        self.io.set_timeout(100)
+        self.io.set_timeout(2000)
         
         
     def report(self):
@@ -58,6 +58,14 @@ class OpticalPowerMeter():
     def set_wavelength_nm(self, wavelength_nm):
         self.io.write(f"CORR:WAV {wavelength_nm}")
         
+    def set_power_unit(self, unit):
+        if unit != "DBM" and unit != "W":
+            self.log.error(f"{unit} is not a valid power unit! (W or DBM)")
+            return
+            
+        self.io.write(f"POW:UNIT {unit}")
+        #Necessary for the device to act on the new unit setting.
+        self.io.write("CONF:POW")
         
     def get_data(self):
         return float(self.io.query("READ?"))
