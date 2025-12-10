@@ -5,11 +5,177 @@ from fnal_libIO import *
 import socket
 import select
 import time
+import serial
+
+# Generic Class that holds functions for communicating to a prologix device, regardless of
+# which type. 
+class PrologixInterface(GenericInterface):
+    MODE_DEVICE: Final = 0
+    MODE_CONTROLLER: Final = 1
+
+
+    ###############################################
+    # Convenience Functions for Prologix Commands #
+    ###############################################
+
+    def identify_bridge(self) -> str:
+        """Identify Prologix bridge"""
+        return self.send_command("ver", True)
+
+    def set_mode(self, mode: int) -> None:
+        """Set Prologix operating mode. Use MODE_* constants."""
+        self.send_command(f"mode {mode}", False)
+
+    def set_gpib_addr(self, addr: int) -> None:
+        self.send_command(f"addr {addr}", False)
+
+    def set_read_after_write(self, enabled: bool = True) -> None:
+        """Enables/disabled Prologix Read-After-Write"""
+        self.send_command(f"auto {1 if enabled else 0}", False)
+
+    def set_local_controls(self, enabled: bool = True) -> None:
+        """Enables/disabled GPIB device local front panel controls"""
+        if enabled:
+            self.send_command('loc', False)
+        else:
+            self.send_command('llo', False)
+
+    def set_eot_signaling(self, enabled: bool = False, char_code: int = 0x04) -> None:
+        if not enabled:
+            self.send_command("eot_enable 0", False)
+            return
+
+        if (char_code < 0 or char_code > 255):
+            raise ValueError(f"EOT character must be beteen 0 and 255 inclusively (got {char_code})")
+
+        self.data_eot_char = char_code
+        self.send_command(f"eot_char {char_code}", False)
+        self.send_command(f"eot_enable 1", False)
+
+    def identify_device(self) -> str:
+        """Identifies GPIB device connected"""
+        return self.query("*idn?", True)
+
+    ##############################
+    # Basic Read/write functions #
+    ##############################
+
+    def query(self, cmd_txt: str, trim: bool = False) -> str:
+        """Sends a low-level query to the instrument
+
+           Sending a query is intended for commands that DO return a
+           responses. If you're not expecting a response you should
+           use send_line_*() method offered by your instrument's library.
+
+           This function should NOT be used directly outside of
+           instrument-specific modules. Instrument-specific modules
+           are tasked to offer error handling.
+        """
+
+        #For Query-type commands ONLY we set read-after-write to True.
+        #self.(enabled=True)
+        self.send_line(cmd_txt)
+
+        recv = self.send_command("read", True)
+        #recv = self.recv_line()
+        #self.set_read_after_write(enabled=False)
+
+        return recv.strip() if trim else recv
+
+
+    def write(self, write_text):
+        self.send_line(write_text)
+
+
+    def send_command(self, cmd: str, expect_response: bool) -> str | None:
+        """Sends a command to the Prologix bridge directly"""
+        cmd = f"++{cmd}"
+
+        # Even silent commands in Prolgoix can return an error but quickly
+        self.send_line(cmd)
+        rcv = self.recv_line() if expect_response else self.recv_blocking(0.1)
+        rcv = rcv.strip()
+
+        # Prologix will send this string no matter what (e.g. wrong parameter to a valid command)
+        if rcv == "Unrecognized command":
+            raise IOError(f"Prologix command \"{cmd}\": bridge failed to excute the commend")
+
+        if not expect_response and rcv != "":
+            raise RuntimeError(f"Prologix command \"{cmd}\" returned data when not expected: {rcv}")
+
+        return rcv if expect_response else None
+        
+ 
+########################################################################################       
+
+# Class for interfaces that use a Prologix USB-to-GPIB Converter/Bridge
+# Docs: https://prologix.biz/downloads/PrologixGpibUsbManual-6.0.pdf
+class PrologixGPIBUSBInterface(PrologixInterface):
+    def __init__(self, logger, port, device_addr):
+        """Parameters:
+           logger = logger instance.
+           port   = USB serial port the Prologix is connected to.
+           device_addr = the GPIB address of the device being controlled by Prologix.
+        """
+
+        self.log = logger
+        self.device_addr = device_addr
+        self.port = port
+        self.ser = None
+
+        #Defaults
+        self.baudrate = 115200
+        self.timeout = 0.5
+
+        self.connect()
+
+    def is_connected(self):
+        return self.ser is not None
+
+    def connect(self):
+        self.ser = serial.Serial(
+            port=self.port, 
+            baudrate=self.baudrate, 
+            timeout=self.timeout
+        )
+        self.set_gpib_addr(self.device_addr)
+        self.set_read_after_write(enabled=False)
+
+    def disconnect(self) -> None:
+        if not self.is_connected():
+            return # noop
+
+        self.log.info("Disconnecting from Prologix GPIB-USB...")
+        self.ser.close()
+        self.ser = None
+
+    def send_line(self, cmd_txt):
+        if not self.is_connected():
+            raise RuntimeError("Attempted to send_line() but not connected")
+
+        cmd_txt = cmd_txt.strip()  # some instruments will error-out when whitespaces are sent
+        self.ser.write((cmd_txt+"\n").encode())
+
+    def recv_line(self, max_timeout: int|None = None):
+        if not self.is_connected():
+            raise RuntimeError("Attempted to recv_line() but not connected")
+
+        self.ser.timeout = self.timeout if max_timeout is None else max_timeout
+        buffer = self.ser.readline()
+
+        return buffer.decode()
+
+    def recv_blocking(self, max_timeout: int|None = None):
+        return self.recv_line(max_timeout)
+
+   
+
+#########################################################################################
 
 #Class for devices which are controlled using a Prologix Ethernet-to-GPIB
 # Converter/Bridge
 # Docs: https://prologix.biz/downloads/PrologixGpibEthernetManual.pdf
-class PrologixInterface(GenericInterface):
+class PrologixGPIBEthernetInterface(PrologixInterface):
     DEF_BUFFER_SIZE: Final = 4096
 
     MODE_DEVICE: Final = 0
@@ -95,44 +261,6 @@ class PrologixInterface(GenericInterface):
     def is_connected(self) -> bool:
         return self.sock is not None
 
-    def identify_bridge(self) -> str:
-        """Identify Prologix bridge"""
-        return self.send_command("ver", True)
-
-    def identify_device(self) -> str:
-        """Identifies GPIB device connected"""
-        return self.query("*idn?", True)
-
-    def set_mode(self, mode: int) -> None:
-        """Set Prologic operating mode. Use MODE_* constants."""
-        self.send_command(f"mode {mode}", False)
-
-    def set_gpib_addr(self, addr: int) -> None:
-        self.send_command(f"addr {addr}", False)
-
-    def set_read_after_write(self, enabled: bool = True) -> None:
-        """Enables/disabled Prologix Read-After-Write"""
-        self.send_command(f"auto {1 if enabled else 0}", False)
-
-    def set_local_controls(self, enabled: bool = True) -> None:
-        """Enables/disabled GPIB device local front panel controls"""
-        if enabled:
-            self.send_command('loc', False)
-        else:
-            self.send_command('llo', False)
-
-    def set_eot_signaling(self, enabled: bool = False, char_code: int = 0x04) -> None:
-        if not enabled:
-            self.send_command("eot_enable 0", False)
-            return
-
-        if (char_code < 0 or char_code > 255):
-            raise ValueError(f"EOT character must be beteen 0 and 255 inclusively (got {char_code})")
-
-        self.data_eot_char = char_code
-        self.send_command(f"eot_char {char_code}", False)
-        self.send_command(f"eot_enable 1", False)
-
     def send_line(self, cmd_txt: str) -> str:
         """Sends a low-level line to the instrument
 
@@ -156,23 +284,7 @@ class PrologixInterface(GenericInterface):
         #self.log.debug(f"PrologixDevice send_line: {cmd_txt}")
         self.sock.send((cmd_txt+"\n").encode())
 
-    def send_command(self, cmd: str, expect_response: bool) -> str | None:
-        """Sends a command to the Prologix bridge directly"""
-        cmd = f"++{cmd}"
-
-        # Even silent commands in Prolgoix can return an error but quickly
-        self.send_line(cmd)
-        rcv = self.recv_line() if expect_response else self.recv_blocking(0.1)
-        rcv = rcv.strip()
-
-        # Prologix will send this string no matter what (e.g. wrong parameter to a valid command)
-        if rcv == "Unrecognized command":
-            raise IOError(f"Prologix command \"{cmd}\": bridge failed to excute the commend")
-
-        if not expect_response and rcv != "":
-            raise RuntimeError(f"Prologic command \"{cmd}\" returned data when not expected: {rcv}")
-
-        return rcv if expect_response else None
+    
 
     def _flush_buffer(self) -> None:
         """Forcefully flushes Prologix receive buffer
@@ -254,28 +366,4 @@ class PrologixInterface(GenericInterface):
 
         return rcv.decode()
 
-    def query(self, cmd_txt: str, trim: bool = False) -> str:
-        """Sends a low-level query to the instrument
-
-           Sending a query is intended for commands that DO return a
-           responses. If you're not expecting a response you should
-           use send_line_*() method offered by your instrument's library.
-
-           This function should NOT be used directly outside of
-           instrument-specific modules. Instrument-specific modules
-           are tasked to offer error handling.
-        """
-
-        #For Query-type commands ONLY we set read-after-write to True.
-        #self.(enabled=True)
-        self.send_line(cmd_txt)
-
-        recv = self.send_command("read", True)
-        #recv = self.recv_line()
-        #self.set_read_after_write(enabled=False)
-
-        return recv.strip() if trim else recv
-
-
-    def write(self, write_text):
-        self.send_line(write_text)
+   

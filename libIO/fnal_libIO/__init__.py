@@ -2,7 +2,7 @@
 # It also defines any MODULE initialization steps (there usually none)
 
 from .GenericInterface import GenericInterface
-from .PrologixInterface import PrologixInterface
+from .PrologixInterface import PrologixGPIBEthernetInterface, PrologixGPIBUSBInterface
 from .VISAInterface import VISAInterface
 from .VISAInterface import VISA_shell
 from .IPInterface import IPInterface
@@ -12,7 +12,8 @@ from .IPInterface import IPInterface
 #  this library.
 __all__ = [
     "GenericInterface",
-    "PrologixInterface",
+    "PrologixGPIBEthernetInterface",
+    "PrologixGPIBUSBInterface",
     "VISAInterface",
     "VISA_shell",
     "IPInterface"
