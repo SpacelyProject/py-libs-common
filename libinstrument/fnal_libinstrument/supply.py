@@ -31,7 +31,7 @@ class Supply(Source_Instrument):
 
     
     #Set voltage limits in software that will be respected by this command.
-    def set_voltage_limits(limit_tuple):
+    def set_voltage_limits(self, limit_tuple):
         assert(len(limit_tuple)==2)
         self.voltage_limits = limit_tuple
     
@@ -85,7 +85,11 @@ class Supply(Source_Instrument):
             self.io.write(f"INST:SELECT {channel}")
             response = self.io.query(f"MEAS:VOLT?").replace("@","").strip()
             time.sleep(0.1)
-            return float(response)
+            try:
+                return float(response)
+            except ValueError:
+                self.log.error(f"Supply {self.id} returned invalid voltage '{response}'")
+                return None
 
     def get_current(self, channel):
         if self.channel_lint_check(channel) == -1:
@@ -94,7 +98,12 @@ class Supply(Source_Instrument):
             self.io.write(f"INST:SELECT {channel}")
             response = self.io.query(f"MEAS:CURR?").replace("@","").strip()
             time.sleep(0.1)
-            return float(response)
+            try:
+                return float(response)
+            except ValueError:
+                self.log.error(f"Supply {self.id} returned invalid current '{response}'")
+                return None
+            
 
     #Returns channel settings as (voltage, current)
     def _get_channel_settings(self,channel):
