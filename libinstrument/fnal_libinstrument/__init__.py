@@ -9,6 +9,7 @@ from .supply import Supply
 from .nidcpower import NIDCPowerInstrument
 from .optical_power_meter import OpticalPowerMeter
 from .laser import Laser
+from .multimeter import Multimeter
 
 
 # List all symbols that should be externally-importable symbols here
@@ -22,5 +23,6 @@ __all__ = [
     'Source_Instrument',
     'NIDCPowerInstrument',
     'OpticalPowerMeter',
-    'Laser'
+    'Laser',
+    'Multimeter'
 ]
